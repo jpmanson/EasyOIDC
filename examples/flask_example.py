@@ -19,7 +19,7 @@ auth.set_redirector(lambda url: redirect(url))
 LOGIN_PATH = '/login'
 LOGOUT_PATH = '/logout'
 AUTHORIZE_PATH = '/authorize'
-unrestricted_page_routes = [LOGIN_PATH, AUTHORIZE_PATH, '/', LOGOUT_PATH]
+unrestricted_page_routes = [LOGIN_PATH, AUTHORIZE_PATH, '/', LOGOUT_PATH, '/favicon.ico']
 
 
 class AuthenticationMiddleware:
@@ -31,7 +31,6 @@ class AuthenticationMiddleware:
         wsgi_request = WSGIRequest(environ)
 
         with self.flask_app.request_context(wsgi_request.environ):
-            token = None
             authenticated = False
             if session.get('session-state', None) and (session.get('session-state') in session_store):
                 token = session_store[session.get('session-state')]['token']

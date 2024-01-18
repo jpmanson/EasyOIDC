@@ -6,7 +6,6 @@ from EasyOIDC import OIDClient, Config
 from EasyOIDC.utils import is_path_matched
 from nicegui import Client, app, ui
 import shelve
-import re
 
 session_store = shelve.open("session_data/sessions.db")
 # Clean session store
