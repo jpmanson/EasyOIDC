@@ -12,7 +12,7 @@ session_store = shelve.open("session_data/sessions.db")
 for key in session_store.keys():
     del session_store[key]
 
-auth_config = Config('auth.env')
+auth_config = Config('.env')
 auth = OIDClient(auth_config)
 # Set callbacks that dependes on the web framework.
 auth.set_roles_getter(lambda: session_store[app.storage.user.get('session-state')]['userinfo']['realm_access']['roles'])

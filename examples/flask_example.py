@@ -9,7 +9,7 @@ session_store = shelve.open("session_data/sessions.db")
 for key in session_store.keys():
     del session_store[key]
 
-auth_config = Config('auth.env')
+auth_config = Config('.env')
 auth = OIDClient(auth_config)
 auth.set_roles_getter(lambda: session_store[session.get('session-state')]['userinfo']['realm_access']['roles'])
 auth.set_redirector(lambda url: redirect(url))

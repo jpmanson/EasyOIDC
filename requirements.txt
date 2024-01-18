@@ -1,0 +1,3 @@
+authlib
+requests
+python-decouple
