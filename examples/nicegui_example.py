@@ -3,6 +3,7 @@ from fastapi import Request
 from fastapi.responses import RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from EasyOIDC import OIDClient, Config
+from EasyOIDC.utils import is_path_matched
 from nicegui import Client, app, ui
 import shelve
 import re
@@ -36,15 +37,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
             token = session_store[session_state]['token']
             # Verifica la sesión contra el servidor
             authenticated = auth.is_valid_oidc_session(auth.get_oauth_session(token))
-
-        def is_path_matched(path, pattern):
-            if '*' in pattern:
-                # Convertimos el patrón con wildcard a una expresión regular
-                pattern = '^' + re.escape(pattern).replace('\\*', '.*') + '$'
-                return re.match(pattern, path) is not None
-            else:
-                # Comparación directa para rutas exactas
-                return path == pattern
 
         if not authenticated:
             if session_state and (session_state in session_store):

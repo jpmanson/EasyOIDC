@@ -2,6 +2,7 @@ from flask import Flask, request, redirect, make_response, session, Response
 from werkzeug.wrappers import Request as WSGIRequest
 from http.cookies import SimpleCookie
 from EasyOIDC.auth import OIDClient, Config
+from EasyOIDC.utils import is_path_matched
 import shelve
 
 session_store = shelve.open("session_data/sessions.db")
@@ -44,7 +45,7 @@ class AuthenticationMiddleware:
                 return cookies.get(key).value if key in cookies else None
 
             if not authenticated:
-                if request.path not in unrestricted_page_routes:
+                if not any(is_path_matched(request.path, pattern) for pattern in unrestricted_page_routes):
                     app.logger.warning(f'User not authenticated. Redirecting to {LOGIN_PATH} and then to {request.path}')
                     response = make_response(redirect(LOGIN_PATH))
                     response.set_cookie('referrer_path', request.path)
