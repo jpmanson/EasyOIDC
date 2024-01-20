@@ -88,8 +88,8 @@ def main():
     st.title("EasyOIDC")
     st.markdown("This is an streamlit example")
 
-    # st.write(f"Authenticated: {authenticated}")
     if authenticated:
+        st.write(f"Hello {session_store[state]['userinfo']['name']}")
         st.button('Logout', on_click=logout)
     else:
         st.button('Login', on_click=login_request)
