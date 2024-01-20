@@ -17,7 +17,6 @@ if not cookies.ready():
 
 def logout():
     state = cookies.get('state', '')
-    print(f"Logging out...state={state}. session_store={session_store.get(state, {})}")
     token = get_current_token()
     cookies.pop('state')
     cookies.save()
@@ -51,11 +50,9 @@ def validate_user_session():
     token = get_current_token()
     authenticated = False
     if token:
-        print('Checking session token...')
         authenticated = auth.is_valid_oidc_session(auth.get_oauth_session(token))
         # Si tiene un token inválido, lo borramos
         if not authenticated:
-            print('Session token is invalid.!')
             login_request()
     return authenticated
 
@@ -72,8 +69,6 @@ def authenticate():
 
 
 def main():
-    print('===========================================================================================')
-
     state = cookies.get('state', None)
     authorizing = ('state' in st.query_params.to_dict()) and ('code' in st.query_params.to_dict())
     session_data_found = state in session_store

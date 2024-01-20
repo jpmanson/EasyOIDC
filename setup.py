@@ -21,5 +21,6 @@ setuptools.setup(
         "Authlib>=1.3.0",
         "requests>=2.31.0",
         "python-decouple>=3.8"
+        "redis_collections>=0.12.0",
     ],
 )

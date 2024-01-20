@@ -40,7 +40,6 @@ class OIDClient(object):
             for key, value in request_url.items():
                 url += f'{key}={value}&'
             request_url = url[:-1]
-        print('request_url', request_url)
 
         oauth_session = self.get_oauth_session()
         params = dict(url=self.settings.token_endpoint,
