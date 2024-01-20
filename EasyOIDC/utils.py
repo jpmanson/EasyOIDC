@@ -9,3 +9,9 @@ def is_path_matched(path, pattern):
     else:
         # Comparación directa para rutas exactas
         return path == pattern
+
+
+def streamlit_nav_to(url):
+    import streamlit as st
+    nav_script = f"""<meta http-equiv="refresh" content="0; url='{url}'">"""
+    st.write(nav_script, unsafe_allow_html=True)

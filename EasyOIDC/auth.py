@@ -33,11 +33,21 @@ class OIDClient(object):
                                                             redirect_uri=self.settings.redirect_uri)
         return uri, state
 
-    def get_token(self, request_url: str):
+    def get_token(self, request_url):
+        if isinstance(request_url, dict):
+            #Build the request_url from the dict
+            url = self.settings.redirect_uri + '?'
+            for key, value in request_url.items():
+                url += f'{key}={value}&'
+            request_url = url[:-1]
+        print('request_url', request_url)
+
         oauth_session = self.get_oauth_session()
-        token = oauth_session.fetch_token(self.settings.token_endpoint, redirect_uri=self.settings.redirect_uri,
-                                          authorization_response=request_url,
-                                          include_client_id=True)
+        params = dict(url=self.settings.token_endpoint,
+                      redirect_uri=self.settings.redirect_uri,
+                      authorization_response=request_url,
+                      include_client_id=True)
+        token = oauth_session.fetch_token(**params)
         return token, oauth_session
 
     def get_user_info(self, oauth_session):

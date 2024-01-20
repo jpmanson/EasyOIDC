@@ -18,7 +18,7 @@ setuptools.setup(
     python_requires=">=3.9",
     license_files=("LICENSE",),
     install_requires=[
-        "authlib>=1.3.0",
+        "Authlib>=1.3.0",
         "requests>=2.31.0",
         "python-decouple>=3.8"
     ],
