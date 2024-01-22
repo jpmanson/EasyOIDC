@@ -2,6 +2,7 @@ from authlib.integrations.requests_client import OAuth2Session
 from urllib.parse import quote
 from functools import wraps
 from EasyOIDC.config import Config
+import requests
 
 
 class OIDClient(object):
@@ -60,6 +61,7 @@ class OIDClient(object):
         except Exception as e:
             return False
 
+    # Revoke the token in the OIDC server
     def token_revoke(self, oauth_session, token_type_hint: str = None):
         if oauth_session.token is None:
             return
@@ -74,6 +76,7 @@ class OIDClient(object):
         return result.status_code == 200
 
     @staticmethod
+    # Build the logout URL to send to the Keycloak server
     def get_keycloak_logout_url(oauth_session, logout_endpoint, post_logout_uri):
         if oauth_session.token is None:
             return
@@ -82,6 +85,14 @@ class OIDClient(object):
         url = f'{logout_endpoint}?post_logout_redirect_uri={quote(post_logout_uri)}'
         url += f'&id_token_hint={oauth_session.token["id_token"]}'
         return url
+
+    @staticmethod
+    # Send a logout request to the Keycloak server
+    def send_keycloak_logout(oauth_session, logout_endpoint):
+        if oauth_session.token is None:
+            return
+        url = f'{logout_endpoint}?id_token_hint={oauth_session.token["id_token"]}'
+        return requests.get(url)
 
     @staticmethod
     def nicegui_user_roles():

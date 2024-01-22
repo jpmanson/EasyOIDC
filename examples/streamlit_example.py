@@ -3,7 +3,7 @@ from EasyOIDC.utils import streamlit_nav_to
 from EasyOIDC.session import SessionHandler
 import streamlit as st
 from streamlit_cookies_manager import EncryptedCookieManager
-
+st.set_page_config(page_title="EasyOIDC", page_icon=":lock:", initial_sidebar_state="collapsed", layout="wide", menu_items=None)
 session_store = SessionHandler(mode='redis')
 
 auth_config = Config('.env')
@@ -15,19 +15,23 @@ if not cookies.ready():
     st.stop()
 
 
-def logout():
+def logout(reload=False):
     state = cookies.get('state', '')
     token = get_current_token()
     cookies.pop('state')
     cookies.save()
-    if token:
-        logout_endpoint, post_logout_endpoint = auth_config.logout_endpoint, auth_config.post_logout_uri
-        logout_url = auth.get_keycloak_logout_url(auth.get_oauth_session(token),
-                                                  logout_endpoint, post_logout_endpoint)
-        session_store[state] = {'userinfo': None, 'token': None}
-        streamlit_nav_to(logout_url)
+    session_store[state] = {'userinfo': None, 'token': None}
+    if reload:
+        if token:
+            logout_endpoint, post_logout_endpoint = auth_config.logout_endpoint, auth_config.post_logout_uri
+            logout_url = auth.get_keycloak_logout_url(auth.get_oauth_session(token),
+                                                      logout_endpoint, post_logout_endpoint)
+            streamlit_nav_to(logout_url)
+        else:
+            streamlit_nav_to('/')
     else:
-        streamlit_nav_to('/')
+        if token:
+            auth.send_keycloak_logout(auth.get_oauth_session(token), auth_config.logout_endpoint)
 
 
 def login_request():
@@ -68,6 +72,20 @@ def authenticate():
     streamlit_nav_to('/')
 
 
+
+style = "<style>"
+style += "div[data-testid='collapsedControl'] {transition: none; display: none;}"
+style += "section[data-testid='stSidebar'] {transition: none; display: none;}"
+style += "div[data-testid='stSidebarNav'] {transition: none; display: none;}"
+style += "footer {visibility: hidden;}"
+style += "div[data-testid='stDecoration'] {display: none;}"
+style += "#MainMenu, header, footer {visibility: hidden;}"
+style += ".stDeployButton {display:none;}"
+style += "#stDecoration {display:none;}"
+style += ".st-emotion-cache-z5fcl4 {padding-top: 0}"
+style += "</style>"
+st.markdown(style, unsafe_allow_html=True)
+
 def main():
     state = cookies.get('state', None)
     authorizing = ('state' in st.query_params.to_dict()) and ('code' in st.query_params.to_dict())
@@ -82,14 +100,14 @@ def main():
     else:
         authenticate()
 
-    if authorizing:
+    if len(st.query_params.to_dict().keys()):
         st.stop()
 
     st.title("EasyOIDC")
     st.markdown("This is an streamlit example")
 
     if authenticated:
-        st.write(f"Hello {session_store[state]['userinfo']['name']}")
+        #st.write(f"Hello {session_store[state]['userinfo']['name']}")
         st.button('Logout', on_click=logout)
     else:
         st.button('Login', on_click=login_request)
