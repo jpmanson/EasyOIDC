@@ -27,7 +27,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
     """
     async def dispatch(self, request: Request, call_next):
         authenticated = False
-        token = None
         session_state = app.storage.user.get('session-state', None)
         if session_state and (session_state in session_store):
             token = session_store[session_state]['token']
@@ -62,16 +61,6 @@ def main_page() -> None:
         ui.html(f"Welcome to the Flask app with Middleware!.<br>{auth_txt}<br>{userinfo}<br><a href='/logout'>Logout</a>")
     else:
         ui.html(f"Welcome to the Flask app with Middleware!.<br><a href='/login'>Login</a>")
-
-    """
-    with ui.column().classes('absolute-center items-center'):
-        ui.label(f'Authenticated: {app.storage.user.get("authenticated", False)}').classes('text-2xl')
-        ui.label(f'Roles: {auth.get_user_roles()}').classes('text-2xl')
-        if not app.storage.user.get("authenticated", False):
-            ui.button(on_click=lambda: (ui.open(LOGIN_PATH)), icon='login', text='Login').props('outline round')
-        else:
-            ui.button(on_click=lambda: (ui.open(LOGOUT_PATH)), icon='logout', text='Logout').props('outline round')
-    """
 
 
 @ui.page('/protected')
@@ -112,7 +101,7 @@ def authorize_page(request: Request) -> Optional[RedirectResponse]:
 
         token, oauth_session = auth.get_token(str(request.url))
         userinfo = auth.get_user_info(oauth_session)
-        session_store[state] = {'userinfo': userinfo, 'token': dict(token), 'authenticated': True}
+        session_store[state] = {'userinfo': userinfo, 'token': dict(token)}
 
         print('Authentication successful:', userinfo)
     except Exception as e:
@@ -130,7 +119,7 @@ def authorize_page(request: Request) -> Optional[RedirectResponse]:
 def login() -> Optional[RedirectResponse]:
     uri, state = auth.auth_server_login()
     app.storage.user.update({'session-state': state})
-    session_store[state] = {'userinfo': None, 'token': None, 'authenticated': False}
+    session_store[state] = {'userinfo': None, 'token': None}
     return RedirectResponse(uri)
 
 
