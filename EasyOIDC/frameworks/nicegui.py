@@ -1,6 +1,7 @@
 from fastapi import Request
 from fastapi.responses import RedirectResponse, Response
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.routing import Route
 from EasyOIDC import OIDClient, Config
 from EasyOIDC.utils import is_path_matched
 from EasyOIDC.session import SessionHandler
@@ -15,12 +16,15 @@ class NiceGUIOIDClient(OIDClient):
         if session_storage is None:
             session_storage = SessionHandler(mode='redis')
 
-        auth_config.unrestricted_routes = ['/_nicegui/*']
+        # Get all routes from nicegui app
+        nicegui_routes = [r.path.replace('{key:path}', '*').replace('{key}/{path:path}', '*') for r in nicegui_app.routes if isinstance(r, Route)]
+        auth_config.unrestricted_routes = nicegui_routes + ['/_nicegui/*']
 
         super().__init__(auth_config, log_enabled)
         self.auth_config = auth_config
         self.session_storage = session_storage
         self.nicegui_app = nicegui_app
+
         auth_middleware = AuthMiddleware
         auth_middleware.session_storage = session_storage
         auth_middleware.oidc_client = self
@@ -28,10 +32,11 @@ class NiceGUIOIDClient(OIDClient):
         auth_middleware.nicegui_app = nicegui_app
         self.nicegui_app.add_middleware(auth_middleware)
 
-        self.set_roles_getter(
-            lambda: self.session_storage[nicegui_app.storage.user.get('session-state')]['userinfo']['realm_access'][
-                'roles'])
         self.set_redirector(lambda url: RedirectResponse(url))
+
+        self.set_roles_getter(
+            lambda: self.session_storage[nicegui_app.storage.user.get('session-state', '')].get('userinfo', {}).get('realm_access', {}).get(
+                'roles', []))
 
         # Add FastAPI route /login to method login_route_handler
         self.nicegui_app.add_route(auth_config.app_login_route, self.login_route_handler)
@@ -51,9 +56,11 @@ class NiceGUIOIDClient(OIDClient):
             userinfo = self.get_user_info(oauth_session)
             self.session_storage[state] = {'userinfo': userinfo, 'token': dict(token)}
 
-            print('Authentication successful:', userinfo)
+            if self.log_enabled:
+                print('Authentication successful:', userinfo)
         except Exception as e:
-            print(f"Authentication error: '{e}'. Redirecting to login page...")
+            if self.log_enabled:
+                print(f"Authentication error: '{e}'. Redirecting to login page...")
             RedirectResponse(self.auth_config.app_login_route)
 
         referrer_path = self.nicegui_app.storage.user.get('referrer_path', '')
@@ -68,7 +75,7 @@ class NiceGUIOIDClient(OIDClient):
         self.session_storage[state] = {'userinfo': None, 'token': None}
         return RedirectResponse(uri)
 
-    def logout(self):
+    def _logout(self):
         state = self.nicegui_app.storage.user.get('session-state', '')
         token = self.session_storage[state]['token'] if state in self.session_storage else None
         logout_endpoint, post_logout_endpoint = self.auth_config.logout_endpoint, self.auth_config.post_logout_uri
@@ -80,7 +87,11 @@ class NiceGUIOIDClient(OIDClient):
         return logout_url
 
     def logout_route_handler(self, request: Request) -> Response:
-        return RedirectResponse(self.logout())
+        logout_url = self._logout()
+        if logout_url:
+            return RedirectResponse(logout_url)
+        else:
+            return RedirectResponse('/')
 
     def is_authenticated(self):
         state = self.nicegui_app.storage.user.get('session-state', None)
@@ -119,13 +130,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 del self.session_storage[session_state]
             # Check if the requested path matches with unrestricted_page_routes.
             if not page_unrestricted:
-                self.nicegui_app.storage.user['referrer_path'] = request.url.path
-                print(f"After login will redirect to '{request.url.path}'")
+                self.nicegui_app.storage.user['referrer_path'] = '/' if request.url.path is None else request.url.path
+                if self.log_enabled:
+                    print(f"After login will redirect to '{request.url.path}'")
                 return RedirectResponse(login_route)
         else:
-            referrer_path = self.nicegui_app.storage.user.get('referrer_path', None)
+            referrer_path = self.nicegui_app.storage.user.get('referrer_path', '')
             if referrer_path:
                 self.nicegui_app.storage.user['referrer_path'] = ''
-                print('Redirecting to', referrer_path)
+                if self.log_enabled:
+                    print('Redirecting to', referrer_path)
                 return RedirectResponse(referrer_path)
         return await call_next(request)

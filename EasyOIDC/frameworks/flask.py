@@ -6,7 +6,8 @@ from EasyOIDC import OIDClient, Config, SessionHandler
 
 
 class FlaskOIDClient(OIDClient):
-    def __init__(self, app, auth_config: Config = None, session_storage: SessionHandler = None, log_enabled: bool = True):
+    def __init__(self, app, auth_config: Config = None, session_storage: SessionHandler = None,
+                 log_enabled: bool = True):
         if auth_config is None:
             auth_config = Config('.env')
         if session_storage is None:
@@ -18,10 +19,11 @@ class FlaskOIDClient(OIDClient):
         self.session_storage = session_storage
         self.flask_app.secret_key = auth_config.cookie_secret_key
         self.flask_app.wsgi_app = AuthenticationMiddleware(app, session_storage, self)
+        self.set_redirector(lambda url: redirect(url))
 
         self.set_roles_getter(
-            lambda: session_storage[session.get('session-state')]['userinfo']['realm_access']['roles'])
-        self.set_redirector(lambda url: redirect(url))
+            lambda: session_storage[session.get('session-state', '')].get('userinfo', {}).get('realm_access', {}).get(
+                'roles', []))
 
         # Add Flask route /authorize to method authorize_route_handler
         self.flask_app.add_url_rule(auth_config.app_authorize_route, 'authorize_route_handler',
@@ -66,7 +68,7 @@ class FlaskOIDClient(OIDClient):
         # Redirect the user to the authorization server
         return response
 
-    def logout(self):
+    def _logout(self):
         if session.get('session-state', None) and (session.get('session-state') in self.session_storage):
             token = self.session_storage[session.get('session-state')]['token']
             logout_endpoint, post_logout_uri = self.auth_config.logout_endpoint, self.auth_config.post_logout_uri
@@ -79,7 +81,7 @@ class FlaskOIDClient(OIDClient):
         return None
 
     def logout_route_handler(self):
-        logout_url = self.logout()
+        logout_url = self._logout()
         if logout_url:
             return redirect(logout_url)
         else:

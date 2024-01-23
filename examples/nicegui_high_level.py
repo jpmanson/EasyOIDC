@@ -10,7 +10,7 @@ auth = NiceGUIOIDClient(app, auth_config=auth_config, session_storage=session_st
 
 @ui.page('/protected')
 @auth.require_roles('/access-forbidden', and_allow_roles=['intranet-home'])
-def home_page() -> None:
+def protected_page() -> None:
     with ui.column().classes('absolute-center items-center'):
         ui.label(f'Hello!').classes('text-2xl')
 
@@ -24,11 +24,11 @@ def access_forbidden() -> None:
 @ui.page('/')
 def root():
     is_authenticated = auth.is_authenticated()
-    if is_authenticated:
-        userinfo = auth.get_userinfo()
-        return f"Welcome to the Flask app with Middleware!.<br>User authenticated={is_authenticated}<br>{userinfo}<br><a href='/logout'>Logout</a>"
-    else:
-        return f"Welcome to the Flask app with Middleware!.<br><a href='/login'>Login</a>"
+    with ui.column().classes('absolute-center items-center'):
+        if is_authenticated:
+            ui.markdown(f"NiceGUI demo.<br>User authenticated={is_authenticated}<br>{auth.get_userinfo()}<br><a href='/logout'>Logout</a>").classes('text-2xl')
+        else:
+            ui.markdown(f"NiceGUI demo.<br><a href='/login'>Login</a>").classes('text-2xl')
 
 
 if __name__ in {"__main__", "__mp_main__"}:
