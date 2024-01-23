@@ -1,7 +1,6 @@
-from EasyOIDC.auth import Config
-from EasyOIDC.nicegui import NiceGUIOIDClient
-from EasyOIDC.session import SessionHandler
-from nicegui import Client, app, ui
+from EasyOIDC import Config, SessionHandler
+from EasyOIDC.frameworks.nicegui import NiceGUIOIDClient
+from nicegui import app, ui
 
 
 session_storage = SessionHandler(mode='redis', namespace=__name__)

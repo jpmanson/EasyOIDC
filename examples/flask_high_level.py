@@ -1,7 +1,6 @@
 from flask import Flask
-from EasyOIDC.auth import Config
-from EasyOIDC.flask import FlaskOIDClient
-from EasyOIDC.session import SessionHandler
+from EasyOIDC import Config, SessionHandler
+from EasyOIDC.frameworks.flask import FlaskOIDClient
 
 app = Flask(__name__)
 session_storage = SessionHandler(mode='redis', namespace=__name__)
