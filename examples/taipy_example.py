@@ -4,7 +4,11 @@ from http.cookies import SimpleCookie
 from EasyOIDC.auth import OIDClient, Config
 from EasyOIDC.utils import is_path_matched
 from EasyOIDC.session import SessionHandler
-import shelve
+from taipy import Gui
+import taipy as tp
+import taipy.gui.builder as tgb
+from taipy.gui import Markdown
+
 
 """
 session_store = shelve.open("session_data/sessions.db")
@@ -23,7 +27,9 @@ auth.set_redirector(lambda url: redirect(url))
 LOGIN_PATH = '/login'
 LOGOUT_PATH = '/logout'
 AUTHORIZE_PATH = '/authorize'
-unrestricted_page_routes = [LOGIN_PATH, AUTHORIZE_PATH, '/', LOGOUT_PATH, '/favicon.ico']
+unrestricted_page_routes = [LOGIN_PATH, AUTHORIZE_PATH, '/', LOGOUT_PATH, '/favicon.ico',
+                            '/taipy-*', '/stylekit/*', '/manifest.json', '/227.taipy-gui.js',
+                            '/taipy.status.json']
 
 
 class AuthenticationMiddleware:
@@ -159,5 +165,18 @@ def logout_page():
         return redirect('/')
 
 
-if __name__ == "__main__":
-    app.run()
+with tgb.Page() as home_page:
+    tgb.text("Name:")
+    tgb.input("{input_name}")
+    tgb.button("Submit")
+    tgb.text("Message {message}")
+
+
+pages = {
+    "page1": Markdown("#HolaPage1"),
+	"page2": Markdown("#HolaPage2"),
+    "home": home_page
+}
+
+gui = Gui(pages=pages, flask=app)
+gui.run()
