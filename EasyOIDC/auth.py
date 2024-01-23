@@ -40,7 +40,7 @@ class OIDClient(object):
 
     def get_token(self, request_url):
         if isinstance(request_url, dict):
-            #Build the request_url from the dict
+            # Build the request_url from the dict
             url = self._config.redirect_uri + '?'
             for key, value in request_url.items():
                 url += f'{key}={value}&'
@@ -114,7 +114,8 @@ class OIDClient(object):
     # and_allow_roles: Lista de roles que debe cumplir (todos ellos)
     # or_allow_roles: Lista de roles que puede cumplir (cualquiera de ellos)
     # deny_roles: Lista de roles que no están permitidos (cualquier de ellos)
-    def require_roles(self, access_denied_url: str, and_allow_roles: list = [], deny_roles: list = [], or_allow_roles: list = []):
+    def require_roles(self, access_denied_url: str, and_allow_roles: list = [], deny_roles: list = [],
+                      or_allow_roles: list = []):
         def decorator(f):
             @wraps(f)
             def decorated_function(*args, **kwargs):
@@ -155,5 +156,7 @@ class OIDClient(object):
                     return response
                 else:
                     return self._redirector(access_denied_url)
+
             return decorated_function
+
         return decorator
