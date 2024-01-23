@@ -117,7 +117,7 @@ def authorize_page(request: Request) -> Optional[RedirectResponse]:
 
 @ui.page(LOGIN_PATH)
 def login() -> Optional[RedirectResponse]:
-    uri, state = auth.auth_server_login()
+    uri, state = auth._auth_server_login()
     app.storage.user.update({'session-state': state})
     session_store[state] = {'userinfo': None, 'token': None}
     return RedirectResponse(uri)

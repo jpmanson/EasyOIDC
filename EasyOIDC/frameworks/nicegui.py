@@ -6,6 +6,9 @@ from EasyOIDC import OIDClient, Config
 from EasyOIDC.utils import is_path_matched
 from EasyOIDC.session import SessionHandler
 from nicegui.app import App
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class NiceGUIOIDClient(OIDClient):
@@ -21,72 +24,72 @@ class NiceGUIOIDClient(OIDClient):
         auth_config.unrestricted_routes = nicegui_routes + ['/_nicegui/*']
 
         super().__init__(auth_config, log_enabled)
-        self.auth_config = auth_config
-        self.session_storage = session_storage
-        self.nicegui_app = nicegui_app
+        self._auth_config = auth_config
+        self._session_storage = session_storage
+        self._nicegui_app = nicegui_app
 
         auth_middleware = AuthMiddleware
         auth_middleware.session_storage = session_storage
         auth_middleware.oidc_client = self
         auth_middleware.log_enabled = log_enabled
         auth_middleware.nicegui_app = nicegui_app
-        self.nicegui_app.add_middleware(auth_middleware)
+        self._nicegui_app.add_middleware(auth_middleware)
 
         self.set_redirector(lambda url: RedirectResponse(url))
 
         self.set_roles_getter(
-            lambda: self.session_storage[nicegui_app.storage.user.get('session-state', '')].get('userinfo', {}).get('realm_access', {}).get(
+            lambda: self._session_storage[nicegui_app.storage.user.get('session-state', '')].get('userinfo', {}).get('realm_access', {}).get(
                 'roles', []))
 
         # Add FastAPI route /login to method login_route_handler
-        self.nicegui_app.add_route(auth_config.app_login_route, self.login_route_handler)
+        self._nicegui_app.add_route(auth_config.app_login_route, self._login_route_handler)
 
         # Add FastAPI route /authorize to method authorize_route_handler
-        self.nicegui_app.add_route(auth_config.app_authorize_route, self.authorize_route_handler)
+        self._nicegui_app.add_route(auth_config.app_authorize_route, self._authorize_route_handler)
 
         # Add FastAPI route /logout to method logout_route_handler
-        self.nicegui_app.add_route(auth_config.app_logout_route, self.logout_route_handler)
+        self._nicegui_app.add_route(auth_config.app_logout_route, self._logout_route_handler)
 
-    def authorize_route_handler(self, request: Request) -> Response:
+    def _authorize_route_handler(self, request: Request) -> Response:
         try:
             state = request.query_params['state']
-            assert state == self.nicegui_app.storage.user.get('session-state', None)
+            assert state == self._nicegui_app.storage.user.get('session-state', None)
 
             token, oauth_session = self.get_token(str(request.url))
             userinfo = self.get_user_info(oauth_session)
-            self.session_storage[state] = {'userinfo': userinfo, 'token': dict(token)}
+            self._session_storage[state] = {'userinfo': userinfo, 'token': dict(token)}
 
-            if self.log_enabled:
-                print('Authentication successful:', userinfo)
+            if self._log_enabled:
+                logger.debug('Authentication successful.')
         except Exception as e:
-            if self.log_enabled:
-                print(f"Authentication error: '{e}'. Redirecting to login page...")
-            RedirectResponse(self.auth_config.app_login_route)
+            if self._log_enabled:
+                logger.debug(f"Authentication error: '{e}'. Redirecting to login page...")
+            RedirectResponse(self._auth_config.app_login_route)
 
-        referrer_path = self.nicegui_app.storage.user.get('referrer_path', '')
+        referrer_path = self._nicegui_app.storage.user.get('referrer_path', '')
         if referrer_path:
             return RedirectResponse(referrer_path)
         else:
             return RedirectResponse('/')
 
-    def login_route_handler(self, request: Request) -> Response:
-        uri, state = self.auth_server_login()
-        self.nicegui_app.storage.user.update({'session-state': state})
-        self.session_storage[state] = {'userinfo': None, 'token': None}
+    def _login_route_handler(self, request: Request) -> Response:
+        uri, state = self._auth_server_login()
+        self._nicegui_app.storage.user.update({'session-state': state})
+        self._session_storage[state] = {'userinfo': None, 'token': None}
         return RedirectResponse(uri)
 
     def _logout(self):
-        state = self.nicegui_app.storage.user.get('session-state', '')
-        token = self.session_storage[state]['token'] if state in self.session_storage else None
-        logout_endpoint, post_logout_endpoint = self.auth_config.logout_endpoint, self.auth_config.post_logout_uri
+        state = self._nicegui_app.storage.user.get('session-state', '')
+        token = self._session_storage[state]['token'] if state in self._session_storage else None
+        logout_endpoint, post_logout_endpoint = self._auth_config.logout_endpoint, self._auth_config.post_logout_uri
         logout_url = self.get_keycloak_logout_url(self.get_oauth_session(token),
                                                   logout_endpoint, post_logout_endpoint)
-        self.nicegui_app.storage.user.update({'session-state': None, 'referrer_path': ''})
-        if state in self.session_storage:
-            del self.session_storage[state]
+        self._nicegui_app.storage.user.update({'session-state': None, 'referrer_path': ''})
+        if state in self._session_storage:
+            del self._session_storage[state]
         return logout_url
 
-    def logout_route_handler(self, request: Request) -> Response:
+    def _logout_route_handler(self, request: Request) -> Response:
         logout_url = self._logout()
         if logout_url:
             return RedirectResponse(logout_url)
@@ -94,15 +97,15 @@ class NiceGUIOIDClient(OIDClient):
             return RedirectResponse('/')
 
     def is_authenticated(self):
-        state = self.nicegui_app.storage.user.get('session-state', None)
-        if (state in self.session_storage) and (self.session_storage[state]['userinfo']):
+        state = self._nicegui_app.storage.user.get('session-state', None)
+        if (state in self._session_storage) and (self._session_storage[state]['userinfo']):
             return True
         return False
 
     def get_userinfo(self):
-        state = self.nicegui_app.storage.user.get('session-state', None)
-        if (state in self.session_storage) and (self.session_storage[state]['userinfo']):
-            return self.session_storage[state]['userinfo']
+        state = self._nicegui_app.storage.user.get('session-state', None)
+        if (state in self._session_storage) and (self._session_storage[state]['userinfo']):
+            return self._session_storage[state]['userinfo']
         return None
 
 
@@ -132,13 +135,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
             if not page_unrestricted:
                 self.nicegui_app.storage.user['referrer_path'] = '/' if request.url.path is None else request.url.path
                 if self.log_enabled:
-                    print(f"After login will redirect to '{request.url.path}'")
+                    logger.debug(f"After login will redirect to '{request.url.path}'")
                 return RedirectResponse(login_route)
         else:
             referrer_path = self.nicegui_app.storage.user.get('referrer_path', '')
             if referrer_path:
                 self.nicegui_app.storage.user['referrer_path'] = ''
                 if self.log_enabled:
-                    print('Redirecting to', referrer_path)
+                    logger.debug('Redirecting to', referrer_path)
                 return RedirectResponse(referrer_path)
         return await call_next(request)

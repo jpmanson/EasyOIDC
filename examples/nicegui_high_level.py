@@ -7,7 +7,6 @@ session_storage = SessionHandler(mode='redis', namespace=__name__)
 auth_config = Config('.env')
 auth = NiceGUIOIDClient(app, auth_config=auth_config, session_storage=session_storage)
 
-
 @ui.page('/protected')
 @auth.require_roles('/access-forbidden', and_allow_roles=['intranet-home'])
 def protected_page() -> None:

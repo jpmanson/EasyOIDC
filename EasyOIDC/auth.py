@@ -7,61 +7,61 @@ import requests
 
 class OIDClient(object):
     def __init__(self, config: Config, log_enabled: bool = True):
-        self.config = config
-        self.roles_getter = None
-        self.redirector = None
-        self.log_enabled = log_enabled
+        self._config = config
+        self._roles_getter = None
+        self._redirector = None
+        self._log_enabled = log_enabled
 
     def set_roles_getter(self, func: callable):
-        self.roles_getter = func
+        self._roles_getter = func
 
     def set_redirector(self, func: callable):
-        self.redirector = func
+        self._redirector = func
 
     def get_config(self):
-        return self.config
+        return self._config
 
     def get_oauth_session(self, token: dict = None):
         if token:
-            return OAuth2Session(self.config.client_id, self.config.client_secret,
-                                 authorization_endpoint=self.config.authorization_endpoint,
-                                 token_endpoint=self.config.token_endpoint,
-                                 token=token, scope=self.config.scope)
+            return OAuth2Session(self._config.client_id, self._config.client_secret,
+                                 authorization_endpoint=self._config.authorization_endpoint,
+                                 token_endpoint=self._config.token_endpoint,
+                                 token=token, scope=self._config.scope)
         else:
-            return OAuth2Session(self.config.client_id, self.config.client_secret,
-                                 authorization_endpoint=self.config.authorization_endpoint,
-                                 token_endpoint=self.config.token_endpoint, scope=self.config.scope)
+            return OAuth2Session(self._config.client_id, self._config.client_secret,
+                                 authorization_endpoint=self._config.authorization_endpoint,
+                                 token_endpoint=self._config.token_endpoint, scope=self._config.scope)
 
-    def auth_server_login(self):
+    def _auth_server_login(self):
         oauth_session = self.get_oauth_session()
-        uri, state = oauth_session.create_authorization_url(self.config.authorization_endpoint,
-                                                            redirect_uri=self.config.redirect_uri)
+        uri, state = oauth_session.create_authorization_url(self._config.authorization_endpoint,
+                                                            redirect_uri=self._config.redirect_uri)
         return uri, state
 
     def get_token(self, request_url):
         if isinstance(request_url, dict):
             #Build the request_url from the dict
-            url = self.config.redirect_uri + '?'
+            url = self._config.redirect_uri + '?'
             for key, value in request_url.items():
                 url += f'{key}={value}&'
             request_url = url[:-1]
 
         oauth_session = self.get_oauth_session()
-        params = dict(url=self.config.token_endpoint,
-                      redirect_uri=self.config.redirect_uri,
+        params = dict(url=self._config.token_endpoint,
+                      redirect_uri=self._config.redirect_uri,
                       authorization_response=request_url,
                       include_client_id=True)
         token = oauth_session.fetch_token(**params)
         return token, oauth_session
 
     def get_user_info(self, oauth_session):
-        return oauth_session.get(self.config.userinfo_endpoint).json()
+        return oauth_session.get(self._config.userinfo_endpoint).json()
 
     def is_valid_oidc_session(self, oauth_session):
         try:
             if oauth_session.token is None:
                 return False
-            return oauth_session.get(self.config.userinfo_endpoint).status_code == 200
+            return oauth_session.get(self._config.userinfo_endpoint).status_code == 200
         except Exception as e:
             return False
 
@@ -70,11 +70,11 @@ class OIDClient(object):
         if oauth_session.token is None:
             return
         if (token_type_hint is None) or (token_type_hint == 'access_token'):
-            result = oauth_session.revoke_token(self.config.token_revoke_endpoint,
+            result = oauth_session.revoke_token(self._config.token_revoke_endpoint,
                                                 token_type_hint='access_token',
                                                 token=oauth_session.token['access_token'])
         if (token_type_hint is None) or (token_type_hint == 'refresh_token'):
-            result = oauth_session.revoke_token(self.config.token_revoke_endpoint,
+            result = oauth_session.revoke_token(self._config.token_revoke_endpoint,
                                                 token_type_hint='refresh_token',
                                                 token=oauth_session.token['refresh_token'])
         return result.status_code == 200
@@ -109,7 +109,7 @@ class OIDClient(object):
         return roles
 
     def get_user_roles(self):
-        return self.roles_getter()
+        return self._roles_getter()
 
     # and_allow_roles: Lista de roles que debe cumplir (todos ellos)
     # or_allow_roles: Lista de roles que puede cumplir (cualquiera de ellos)
@@ -154,6 +154,6 @@ class OIDClient(object):
                     response = f(*args, **kwargs)
                     return response
                 else:
-                    return self.redirector(access_denied_url)
+                    return self._redirector(access_denied_url)
             return decorated_function
         return decorator

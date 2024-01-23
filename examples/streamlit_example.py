@@ -35,7 +35,7 @@ def logout(reload=False):
 
 
 def login_request():
-    uri, state = auth.auth_server_login()
+    uri, state = auth._auth_server_login()
     cookies['state'] = state
     cookies.save()
     session_store[state] = {'userinfo': None, 'token': None}

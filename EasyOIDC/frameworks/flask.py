@@ -14,11 +14,11 @@ class FlaskOIDClient(OIDClient):
             session_storage = SessionHandler(mode='redis')
 
         super().__init__(auth_config, log_enabled)
-        self.flask_app = app
-        self.auth_config = auth_config
-        self.session_storage = session_storage
-        self.flask_app.secret_key = auth_config.cookie_secret_key
-        self.flask_app.wsgi_app = AuthenticationMiddleware(app, session_storage, self)
+        self._flask_app = app
+        self._auth_config = auth_config
+        self._session_storage = session_storage
+        self._flask_app.secret_key = auth_config.cookie_secret_key
+        self._flask_app.wsgi_app = AuthenticationMiddleware(app, session_storage, self)
         self.set_redirector(lambda url: redirect(url))
 
         self.set_roles_getter(
@@ -26,16 +26,16 @@ class FlaskOIDClient(OIDClient):
                 'roles', []))
 
         # Add Flask route /authorize to method authorize_route_handler
-        self.flask_app.add_url_rule(auth_config.app_authorize_route, 'authorize_route_handler',
-                                    self.authorize_route_handler)
+        self._flask_app.add_url_rule(auth_config.app_authorize_route, 'authorize_route_handler',
+                                     self._authorize_route_handler)
 
         # Add Flask route /login to method login_route_handler
-        self.flask_app.add_url_rule(auth_config.app_login_route, 'login_route_handler', self.login_route_handler)
+        self._flask_app.add_url_rule(auth_config.app_login_route, 'login_route_handler', self._login_route_handler)
 
         # Add Flask route /logout to method logout_route_handler
-        self.flask_app.add_url_rule(auth_config.app_logout_route, 'logout_route_handler', self.logout_route_handler)
+        self._flask_app.add_url_rule(auth_config.app_logout_route, 'logout_route_handler', self._logout_route_handler)
 
-    def authorize_route_handler(self):
+    def _authorize_route_handler(self):
         try:
             # Ensure the 'state' parameter matches the one stored in the user's session
             assert request.args.get('state') == session.get('session-state')
@@ -46,41 +46,41 @@ class FlaskOIDClient(OIDClient):
             # Update the session with the new state and user info
             session.update({'session-state': request.args.get('state')})
             # Save user data in session store
-            self.session_storage[request.args.get('state')] = {'userinfo': userinfo, 'token': dict(token)}
-            if self.log_enabled:
-                self.flask_app.logger.info(f'User {userinfo["name"]} authenticated')
+            self._session_storage[request.args.get('state')] = {'userinfo': userinfo, 'token': dict(token)}
+            if self._log_enabled:
+                self._flask_app.logger.info(f'User {userinfo["name"]} authenticated')
 
         except Exception as e:
-            if self.log_enabled:
-                self.flask_app.logger.error(f"Authorization error: {e}")
-            return redirect(self.auth_config.app_login_route)
+            if self._log_enabled:
+                self._flask_app.logger.error(f"Authorization error: {e}")
+            return redirect(self._auth_config.app_login_route)
 
         return redirect('/')
 
-    def login_route_handler(self):
-        uri, state = self.auth_server_login()
+    def _login_route_handler(self):
+        uri, state = self._auth_server_login()
 
         # Create a response object
         response = make_response(redirect(uri))
         session.update({'session-state': state})
-        self.session_storage[state] = {'userinfo': None, 'token': None}
+        self._session_storage[state] = {'userinfo': None, 'token': None}
 
         # Redirect the user to the authorization server
         return response
 
     def _logout(self):
-        if session.get('session-state', None) and (session.get('session-state') in self.session_storage):
-            token = self.session_storage[session.get('session-state')]['token']
-            logout_endpoint, post_logout_uri = self.auth_config.logout_endpoint, self.auth_config.post_logout_uri
+        if session.get('session-state', None) and (session.get('session-state') in self._session_storage):
+            token = self._session_storage[session.get('session-state')]['token']
+            logout_endpoint, post_logout_uri = self._auth_config.logout_endpoint, self._auth_config.post_logout_uri
             logout_url = self.get_keycloak_logout_url(self.get_oauth_session(token),
                                                       logout_endpoint, post_logout_uri)
-            if session.get('session-state', '') in self.session_storage:
-                del self.session_storage[session.get('session-state')]
+            if session.get('session-state', '') in self._session_storage:
+                del self._session_storage[session.get('session-state')]
             session.update({'session-state': None})
             return logout_url
         return None
 
-    def logout_route_handler(self):
+    def _logout_route_handler(self):
         logout_url = self._logout()
         if logout_url:
             return redirect(logout_url)
@@ -89,14 +89,14 @@ class FlaskOIDClient(OIDClient):
 
     def is_authenticated(self):
         state = session.get('session-state', '')
-        if (state in self.session_storage) and (self.session_storage[state]['userinfo']):
+        if (state in self._session_storage) and (self._session_storage[state]['userinfo']):
             return True
         return False
 
     def get_userinfo(self):
         state = session.get('session-state', '')
-        if (state in self.session_storage) and (self.session_storage[state]['userinfo']):
-            return self.session_storage[state]['userinfo']
+        if (state in self._session_storage) and (self._session_storage[state]['userinfo']):
+            return self._session_storage[state]['userinfo']
         return None
 
 
