@@ -12,12 +12,22 @@ class Config(object):
     client_id = None
     client_secret = None
     cookie_secret_key = None
-    scope = ['openid', 'email', 'profile', 'roles']
+    scope = None
     token_revoke_endpoint = None
     logout_endpoint = None
     post_logout_uri = None
+    app_login_route = None
+    app_logout_route = None
+    app_authorize_route = None
 
     def __init__(self, config_path=None, **kwargs):
+        # Defaults
+        self.scope = ['openid', 'email', 'profile', 'roles']
+        self.app_login_route = '/login'
+        self.app_logout_route = '/logout'
+        self.app_authorize_route = '/authorize'
+        self.unrestricted_routes = ['/', '/favicon.ico']
+
         if config_path and (os.path.exists(config_path)):
             try:
                 self.load_from_json(config_path)
@@ -63,6 +73,9 @@ class Config(object):
         self.token_revoke_endpoint = config('token_revoke_endpoint', None)
         self.logout_endpoint = config('logout_endpoint', None)
         self.post_logout_uri = config('post_logout_uri', None)
+
+    def get_unrestricted_routes(self):
+        return [self.app_login_route, self.app_authorize_route, self.app_logout_route] + self.unrestricted_routes
 
 
 

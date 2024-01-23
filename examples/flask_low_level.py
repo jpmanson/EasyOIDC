@@ -4,14 +4,8 @@ from http.cookies import SimpleCookie
 from EasyOIDC.auth import OIDClient, Config
 from EasyOIDC.utils import is_path_matched
 from EasyOIDC.session import SessionHandler
-import shelve
 
-"""
-session_store = shelve.open("session_data/sessions.db")
-# Clean session store
-for key in session_store.keys():
-    del session_store[key]
-"""
+
 session_store = SessionHandler(mode='redis')
 
 auth_config = Config('.env')

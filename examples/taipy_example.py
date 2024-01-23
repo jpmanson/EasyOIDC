@@ -27,7 +27,7 @@ auth.set_redirector(lambda url: redirect(url))
 LOGIN_PATH = '/login'
 LOGOUT_PATH = '/logout'
 AUTHORIZE_PATH = '/authorize'
-unrestricted_page_routes = [LOGIN_PATH, AUTHORIZE_PATH, '/', LOGOUT_PATH, '/favicon.ico',
+unrestricted_page_routes = [LOGIN_PATH, AUTHORIZE_PATH, LOGOUT_PATH, '/favicon.ico',
                             '/taipy-*', '/stylekit/*', '/manifest.json', '/227.taipy-gui.js',
                             '/taipy.status.json']
 
@@ -96,7 +96,7 @@ def access_forbidden():
 
 
 # Define a route for the Flask app
-@app.route('/')
+@app.route('/sdfsd')
 def root():
     if session.get('session-state', None) and (session.get('session-state') in session_store):
         auth_txt = f'User authenticated={session_store[session.get("session-state")]["authenticated"]}'
@@ -175,7 +175,7 @@ with tgb.Page() as home_page:
 pages = {
     "page1": Markdown("#HolaPage1"),
 	"page2": Markdown("#HolaPage2"),
-    "home": home_page
+    "/": Markdown("<center><|navbar|></center>")
 }
 
 gui = Gui(pages=pages, flask=app)
