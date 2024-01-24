@@ -7,7 +7,7 @@ from EasyOIDC import OIDClient, Config, SessionHandler
 
 class FlaskOIDClient(OIDClient):
     def __init__(self, app, auth_config: Config = None, session_storage: SessionHandler = None,
-                 log_enabled: bool = True):
+                 log_enabled: bool = True, **kwargs):
         if auth_config is None:
             auth_config = Config('.env')
         if session_storage is None:
@@ -20,6 +20,9 @@ class FlaskOIDClient(OIDClient):
         self._flask_app.secret_key = auth_config.cookie_secret_key
         self._flask_app.wsgi_app = AuthenticationMiddleware(app, session_storage, self)
         self.set_redirector(lambda url: redirect(url))
+
+        if 'unrestricted_routes' in kwargs:
+            self._auth_config.unrestricted_routes = kwargs['unrestricted_routes']
 
         self.set_roles_getter(
             lambda: session_storage[session.get('session-state', '')].get('userinfo', {}).get('realm_access', {}).get(

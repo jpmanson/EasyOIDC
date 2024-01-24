@@ -7,6 +7,7 @@ session_storage = SessionHandler(mode='redis', namespace=__name__)
 auth_config = Config('.env')
 auth = NiceGUIOIDClient(app, auth_config=auth_config, session_storage=session_storage)
 
+
 @ui.page('/protected')
 @auth.require_roles('/access-forbidden', and_allow_roles=['intranet-home'])
 def protected_page() -> None:
@@ -23,9 +24,13 @@ def access_forbidden() -> None:
 @ui.page('/')
 def root():
     is_authenticated = auth.is_authenticated()
-    with ui.column().classes('absolute-center items-center'):
+    with ui.column().classes('absolute-center '):
         if is_authenticated:
-            ui.markdown(f"NiceGUI demo.<br>User authenticated={is_authenticated}<br>{auth.get_userinfo()}<br><a href='/logout'>Logout</a>").classes('text-2xl')
+            ui.markdown(f"User authenticated!")
+            ui.markdown(f"Name: {auth.get_userinfo()['name']}")
+            ui.markdown(f"Email: {auth.get_userinfo()['email']}")
+            ui.markdown(f"Roles: {auth.get_user_roles()}")
+            ui.markdown(f"<a href='/logout'>Logout</a>").classes('text-2xl')
         else:
             ui.markdown(f"NiceGUI demo.<br><a href='/login'>Login</a>").classes('text-2xl')
 

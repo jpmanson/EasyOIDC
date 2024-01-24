@@ -13,20 +13,23 @@ logger = logging.getLogger(__name__)
 
 class NiceGUIOIDClient(OIDClient):
     def __init__(self, nicegui_app: App, auth_config: Config = None, session_storage: SessionHandler = None,
-                 log_enabled: bool = True):
+                 log_enabled: bool = True, **kwargs):
         if auth_config is None:
             auth_config = Config('.env')
         if session_storage is None:
             session_storage = SessionHandler(mode='redis')
 
-        # Get all routes from nicegui app
-        nicegui_routes = [r.path.replace('{key:path}', '*').replace('{key}/{path:path}', '*') for r in nicegui_app.routes if isinstance(r, Route)]
-        auth_config.unrestricted_routes = nicegui_routes + ['/_nicegui/*']
-
         super().__init__(auth_config, log_enabled)
         self._auth_config = auth_config
         self._session_storage = session_storage
         self._nicegui_app = nicegui_app
+
+        if 'unrestricted_routes' in kwargs:
+            self._auth_config.unrestricted_routes = kwargs['unrestricted_routes']
+        else:
+            # Get all routes from nicegui app
+            nicegui_routes = [r.path.replace('{key:path}', '*').replace('{key}/{path:path}', '*') for r in nicegui_app.routes if isinstance(r, Route)]
+            self._auth_config.unrestricted_routes = nicegui_routes + ['/_nicegui/*']
 
         auth_middleware = AuthMiddleware
         auth_middleware.session_storage = session_storage

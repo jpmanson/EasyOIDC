@@ -7,6 +7,7 @@ session_storage = SessionHandler(mode='redis', namespace=__name__)
 auth_config = Config('.env')
 auth = FlaskOIDClient(app, auth_config=auth_config, session_storage=session_storage)
 
+
 @app.route('/')
 def root():
     is_authenticated = auth.is_authenticated()
