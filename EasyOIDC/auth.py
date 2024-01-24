@@ -32,7 +32,7 @@ class OIDClient(object):
                                  authorization_endpoint=self._config.authorization_endpoint,
                                  token_endpoint=self._config.token_endpoint, scope=self._config.scope)
 
-    def _auth_server_login(self):
+    def auth_server_login(self):
         oauth_session = self.get_oauth_session()
         uri, state = oauth_session.create_authorization_url(self._config.authorization_endpoint,
                                                             redirect_uri=self._config.redirect_uri)
@@ -97,16 +97,6 @@ class OIDClient(object):
             return
         url = f'{logout_endpoint}?id_token_hint={oauth_session.token["id_token"]}'
         return requests.get(url)
-
-    @staticmethod
-    def nicegui_user_roles():
-        from nicegui import app
-        roles = []
-        try:
-            roles = app.storage.user['userinfo']['realm_access']['roles']
-        except:
-            pass
-        return roles
 
     def get_user_roles(self):
         return self._roles_getter()

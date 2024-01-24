@@ -22,7 +22,7 @@ def home():
 
 @bottle.route('/login')
 def login():
-    uri, state = auth._auth_server_login()
+    uri, state = auth.auth_server_login()
     response.set_cookie('session-cookie', dict(state=state), secret=settings.COOKIE_SECRET_KEY)
     redirect(uri)
 

@@ -10,7 +10,7 @@ auth_config = Config('.env')
 auth_config.redirect_uri = 'http://localhost:5000'
 auth = OIDClient(auth_config)
 
-cookies = EncryptedCookieManager(prefix="jpmanson/EasyODIC/", password=auth_config.cookie_secret_key)
+cookies = EncryptedCookieManager(prefix="jpmanson/EasyOIDC/", password=auth_config.cookie_secret_key)
 if not cookies.ready():
     st.stop()
 
@@ -35,7 +35,7 @@ def logout(reload=False):
 
 
 def login_request():
-    uri, state = auth._auth_server_login()
+    uri, state = auth.auth_server_login()
     cookies['state'] = state
     cookies.save()
     session_store[state] = {'userinfo': None, 'token': None}

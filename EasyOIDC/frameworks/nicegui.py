@@ -76,7 +76,7 @@ class NiceGUIOIDClient(OIDClient):
             return RedirectResponse('/')
 
     def _login_route_handler(self, request: Request) -> Response:
-        uri, state = self._auth_server_login()
+        uri, state = self.auth_server_login()
         self._nicegui_app.storage.user.update({'session-state': state})
         self._session_storage[state] = {'userinfo': None, 'token': None}
         return RedirectResponse(uri)

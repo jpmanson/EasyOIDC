@@ -1,5 +1,5 @@
 from EasyOIDC.frameworks.flask import FlaskOIDClient
-from EasyOIDC import OIDClient, Config, SessionHandler
+from EasyOIDC import Config, SessionHandler
 
 
 class TaipyOIDClient(FlaskOIDClient):

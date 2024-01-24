@@ -61,7 +61,7 @@ class FlaskOIDClient(OIDClient):
         return redirect('/')
 
     def _login_route_handler(self):
-        uri, state = self._auth_server_login()
+        uri, state = self.auth_server_login()
 
         # Create a response object
         response = make_response(redirect(uri))

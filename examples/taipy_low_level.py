@@ -132,7 +132,7 @@ def authorize_page():
 
 @app.route('/login')
 def login():
-    uri, state = auth._auth_server_login()
+    uri, state = auth.auth_server_login()
 
     # Create a response object
     response = make_response(redirect(uri))
