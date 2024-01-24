@@ -45,7 +45,6 @@ class AuthenticationMiddleware:
 
                 # Check if the user is authenticated against the OIDC server
                 authenticated = auth.is_valid_oidc_session(auth.get_oauth_session(token))
-                session_store[session.get('session-state')]['authenticated'] = authenticated
 
             if not authenticated:
                 if not page_unrestricted:
@@ -87,9 +86,8 @@ def access_forbidden():
 @app.route('/')
 def root():
     if session.get('session-state', None) and (session.get('session-state') in session_store):
-        auth_txt = f'User authenticated={session_store[session.get("session-state")]["authenticated"]}'
         userinfo = session_store[session.get('session-state')]['userinfo']
-        return f"Welcome to the Flask app with Middleware!.<br>{auth_txt}<br>{userinfo}<br><a href='/logout'>Logout</a>"
+        return f"Welcome to the Flask app with Middleware!.<br>{userinfo}<br><a href='/logout'>Logout</a>"
     else:
         return f"Welcome to the Flask app with Middleware!.<br><a href='/login'>Login</a>"
 
@@ -106,7 +104,7 @@ def authorize_page():
         # Update the session with the new state and user info
         session.update({'session-state': request.args.get('state')})
         # Save user data in session store
-        session_store[request.args.get('state')] = {'userinfo': userinfo, 'token': dict(token), 'authenticated': True}
+        session_store[request.args.get('state')] = {'userinfo': userinfo, 'token': dict(token)}
         app.logger.info(f'User {userinfo["name"]} authenticated')
 
     except Exception as e:
@@ -125,7 +123,7 @@ def login():
     # Create a response object
     response = make_response(redirect(uri))
     session.update({'session-state': state})
-    session_store[state] = {'userinfo': None, 'token': None, 'authenticated': False}
+    session_store[state] = {'userinfo': None, 'token': None}
 
     # Redirect the user to the authorization server
     return response

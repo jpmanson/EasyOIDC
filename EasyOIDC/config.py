@@ -2,9 +2,8 @@ import os
 
 
 class Config(object):
-    realm_name = None
     base_auth_url = None
-    openid_url = None
+    well_known_openid_url = None
     authorization_endpoint = None
     token_endpoint = None
     userinfo_endpoint = None
@@ -19,10 +18,11 @@ class Config(object):
     app_login_route = None
     app_logout_route = None
     app_authorize_route = None
+    auth_service = None
 
     def __init__(self, config_path=None, **kwargs):
         # Defaults
-        self.scope = ['openid', 'email', 'profile', 'roles']
+        self.scope = ['openid', 'email', 'profile']
         self.app_login_route = '/login'
         self.app_logout_route = '/logout'
         self.app_authorize_route = '/authorize'
@@ -37,13 +37,17 @@ class Config(object):
             if hasattr(self, key):
                 setattr(self, key, value)
 
+        if not self.auth_service:
+            self.auth_service = 'keycloak'     # Default service provider
+            if self.authorization_endpoint.find('https://accounts.google.com') == 0:
+                self.auth_service = 'google'
+
     def load_from_json(self, json_path):
         import json
         with open(json_path, 'r') as f:
             data = json.load(f)
-            self.realm_name = data.get('realm_name', None)
             self.base_auth_url = data['base_auth_url']
-            self.openid_url = data['openid_url']
+            self.well_known_openid_url = data.get('well_known_openid_url', None)
             self.authorization_endpoint = data['authorization_endpoint']
             self.token_endpoint = data['token_endpoint']
             self.userinfo_endpoint = data['userinfo_endpoint']
@@ -59,9 +63,8 @@ class Config(object):
     def load_from_env_file(self, config_path):
         from decouple import Config, RepositoryEnv
         config = Config(RepositoryEnv(config_path))
-        self.realm_name = config('realm_name', None)
         self.base_auth_url = config('base_auth_url')
-        self.openid_url = config('openid_url')
+        self.well_known_openid_url = config('well_known_openid_url', None)
         self.authorization_endpoint = config('authorization_endpoint')
         self.token_endpoint = config('token_endpoint')
         self.userinfo_endpoint = config('userinfo_endpoint')
@@ -77,7 +80,10 @@ class Config(object):
     def get_unrestricted_routes(self):
         return [self.app_login_route, self.app_authorize_route, self.app_logout_route] + self.unrestricted_routes
 
-
+    def update_automatic_settings(self):
+        self._auth_service = 'keycloak'
+        if self._config.authorization_endpoint.find('https://accounts.google.com') == 0:
+            self._auth_service = 'google'
 
 
 

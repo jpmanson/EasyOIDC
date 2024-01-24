@@ -1,23 +1,27 @@
-from redis_collections import Dict, List, Set
+from redis_collections import Dict
 import shelve
 import redis
+
 
 class SessionHandler:
     def __init__(self, mode='redis', namespace='sessions', **kwargs):
         self.mode = mode
         if mode == 'redis':
-            # Create redis.StrictRedis instance
-            redis_params = {}
-            if 'host' in kwargs:
-                redis_params['host'] = kwargs['host']
-            if 'port' in kwargs:
-                redis_params['port'] = kwargs['port']
-            if 'db' in kwargs:
-                redis_params['db'] = kwargs['db']
-            if 'password' in kwargs:
-                redis_params['password'] = kwargs['password']
-            self.redis = redis.StrictRedis(**redis_params)
-            self.redis_dict = Dict(key=namespace)
+            if isinstance(kwargs.get('redis_client', None), redis.StrictRedis):
+                self.redis = kwargs['redis']    # User supplied redis instance
+            else:
+                # Create redis.StrictRedis instance
+                redis_params = {}
+                if 'host' in kwargs:
+                    redis_params['host'] = kwargs['host']
+                if 'port' in kwargs:
+                    redis_params['port'] = kwargs['port']
+                if 'db' in kwargs:
+                    redis_params['db'] = kwargs['db']
+                if 'password' in kwargs:
+                    redis_params['password'] = kwargs['password']
+                self.redis = redis.StrictRedis(**redis_params)
+            self.redis_dict = Dict(key=namespace, redis=self.redis)
         elif mode == 'shelve':
             filename = kwargs.get('filename', 'session_data/sessions.db')
             self.shelve_store = shelve.open(filename)

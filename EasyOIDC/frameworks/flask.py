@@ -71,24 +71,32 @@ class FlaskOIDClient(OIDClient):
         # Redirect the user to the authorization server
         return response
 
-    def _logout(self):
-        if session.get('session-state', None) and (session.get('session-state') in self._session_storage):
-            token = self._session_storage[session.get('session-state')]['token']
-            logout_endpoint, post_logout_uri = self._auth_config.logout_endpoint, self._auth_config.post_logout_uri
-            logout_url = self.get_keycloak_logout_url(self.get_oauth_session(token),
-                                                      logout_endpoint, post_logout_uri)
-            if session.get('session-state', '') in self._session_storage:
-                del self._session_storage[session.get('session-state')]
-            session.update({'session-state': None})
-            return logout_url
+    def _get_current_token(self):
+        state = session.get('session-state', '')
+        if state in self._session_storage:
+            return self._session_storage[state]['token']
         return None
+
+    def _logout(self):
+        logout_url = None
+        token = self._get_current_token()
+        if token:
+            if self._auth_config.logout_endpoint:
+                if self._auth_config.auth_service == 'keycloak':
+                    logout_endpoint, post_logout_uri = self._auth_config.logout_endpoint, self._auth_config.post_logout_uri
+                    logout_url = self.get_keycloak_logout_url(self.get_oauth_session(token),
+                                                              logout_endpoint, post_logout_uri)
+                # Other OIDC providers here (Google, Auth0, etc.)
+            del self._session_storage[session.get('session-state')]
+        session.update({'session-state': None})
+        return logout_url
 
     def _logout_route_handler(self):
         logout_url = self._logout()
         if logout_url:
             return redirect(logout_url)
         else:
-            return redirect('/')
+            return redirect(self._auth_config.post_logout_uri)
 
     def is_authenticated(self):
         state = session.get('session-state', '')

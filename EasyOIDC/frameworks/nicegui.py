@@ -81,15 +81,24 @@ class NiceGUIOIDClient(OIDClient):
         self._session_storage[state] = {'userinfo': None, 'token': None}
         return RedirectResponse(uri)
 
-    def _logout(self):
+    def _get_current_token(self):
         state = self._nicegui_app.storage.user.get('session-state', '')
-        token = self._session_storage[state]['token'] if state in self._session_storage else None
-        logout_endpoint, post_logout_endpoint = self._auth_config.logout_endpoint, self._auth_config.post_logout_uri
-        logout_url = self.get_keycloak_logout_url(self.get_oauth_session(token),
-                                                  logout_endpoint, post_logout_endpoint)
-        self._nicegui_app.storage.user.update({'session-state': None, 'referrer_path': ''})
         if state in self._session_storage:
-            del self._session_storage[state]
+            return self._session_storage[state]['token']
+        return None
+
+    def _logout(self):
+        logout_url = None
+        token = self._get_current_token()
+        if token:
+            if self._auth_config.logout_endpoint:
+                if self._auth_config.auth_service == 'keycloak':
+                    logout_endpoint, post_logout_uri = self._auth_config.logout_endpoint, self._auth_config.post_logout_uri
+                    logout_url = self.get_keycloak_logout_url(self.get_oauth_session(token),
+                                                              logout_endpoint, post_logout_uri)
+                # Other OIDC providers here (Google, Auth0, etc.)
+            del self._session_storage[self._nicegui_app.storage.user.get('session-state')]
+        self._nicegui_app.storage.user.update({'session-state': None, 'referrer_path': ''})
         return logout_url
 
     def _logout_route_handler(self, request: Request) -> Response:
@@ -97,7 +106,7 @@ class NiceGUIOIDClient(OIDClient):
         if logout_url:
             return RedirectResponse(logout_url)
         else:
-            return RedirectResponse('/')
+            return RedirectResponse(self._auth_config.post_logout_uri)
 
     def is_authenticated(self):
         state = self._nicegui_app.storage.user.get('session-state', None)
