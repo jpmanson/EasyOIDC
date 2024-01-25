@@ -2,7 +2,9 @@ from authlib.integrations.requests_client import OAuth2Session
 from urllib.parse import quote
 from functools import wraps
 from EasyOIDC.config import Config
+from EasyOIDC.utils import get_domain_from_url
 import requests
+from urllib.parse import quote_plus, urlencode
 
 
 class OIDClient(object):
@@ -11,6 +13,28 @@ class OIDClient(object):
         self._roles_getter = None
         self._redirector = None
         self._log_enabled = log_enabled
+
+        try:
+            self.validate_config()
+        except Exception as e:
+            try:
+                self._config.load_from_wellknown()
+                self.validate_config()
+            except Exception as e:
+                raise Exception(f"Error loading configuration: {e}")
+
+    def validate_config(self):
+        try:
+            assert self._config.authorization_endpoint is not None
+            assert self._config.token_endpoint is not None
+            assert self._config.userinfo_endpoint is not None
+            assert self._config.redirect_uri is not None
+            assert self._config.client_id is not None
+            assert self._config.client_secret is not None
+            assert self._config.cookie_secret_key is not None
+            assert self._config.scope is not None
+        except Exception as e:
+            raise Exception(f"Missing configuration parameters. {e}")
 
     def set_roles_getter(self, func: callable):
         self._roles_getter = func
@@ -88,6 +112,18 @@ class OIDClient(object):
             post_logout_uri = ''
         url = f'{logout_endpoint}?post_logout_redirect_uri={quote(post_logout_uri)}'
         url += f'&id_token_hint={oauth_session.token["id_token"]}'
+        return url
+
+    def get_auth0_logout_url(self):
+        post_logout_uri = self._config.post_logout_uri
+        client_id = self._config.client_id
+        if self._config.logout_endpoint:
+            path = self._config.logout_endpoint
+        else:
+            path = f'https://{get_domain_from_url(self._config.authorization_endpoint)}/v2/logout'
+        if post_logout_uri is None:
+            post_logout_uri = ''
+        url = f'{path}?returnTo={quote_plus(post_logout_uri)}&client_id={client_id}'
         return url
 
     @staticmethod

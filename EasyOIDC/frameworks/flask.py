@@ -1,7 +1,7 @@
 from flask import request, redirect, make_response, session
 from werkzeug.wrappers import Request as WSGIRequest
 from http.cookies import SimpleCookie
-from EasyOIDC.utils import is_path_matched
+from EasyOIDC.utils import is_path_matched, get_domain_from_url
 from EasyOIDC import OIDClient, Config, SessionHandler
 
 
@@ -86,7 +86,10 @@ class FlaskOIDClient(OIDClient):
                     logout_endpoint, post_logout_uri = self._auth_config.logout_endpoint, self._auth_config.post_logout_uri
                     logout_url = self.get_keycloak_logout_url(self.get_oauth_session(token),
                                                               logout_endpoint, post_logout_uri)
-                # Other OIDC providers here (Google, Auth0, etc.)
+                elif self._auth_config.auth_service == 'auth0':
+                    logout_url = self.get_auth0_logout_url()
+
+                # Other OIDC providers here (Google, GitHub, etc.)
             del self._session_storage[session.get('session-state')]
         session.update({'session-state': None})
         return logout_url

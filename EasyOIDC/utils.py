@@ -11,6 +11,12 @@ def is_path_matched(path, pattern):
         return path == pattern
 
 
+def get_domain_from_url(url):
+    from urllib.parse import urlparse
+    parsed_url = urlparse(url)
+    return parsed_url.netloc
+
+
 def streamlit_nav_to(url):
     import streamlit as st
     nav_script = f"""<meta http-equiv="refresh" content="0; url='{url}'">"""

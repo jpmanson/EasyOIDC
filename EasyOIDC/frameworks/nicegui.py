@@ -96,7 +96,10 @@ class NiceGUIOIDClient(OIDClient):
                     logout_endpoint, post_logout_uri = self._auth_config.logout_endpoint, self._auth_config.post_logout_uri
                     logout_url = self.get_keycloak_logout_url(self.get_oauth_session(token),
                                                               logout_endpoint, post_logout_uri)
-                # Other OIDC providers here (Google, Auth0, etc.)
+                elif self._auth_config.auth_service == 'auth0':
+                    logout_url = self.get_auth0_logout_url()
+
+                # Other OIDC providers here (Google, GitHub, etc.)
             del self._session_storage[self._nicegui_app.storage.user.get('session-state')]
         self._nicegui_app.storage.user.update({'session-state': None, 'referrer_path': ''})
         return logout_url
