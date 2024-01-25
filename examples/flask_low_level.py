@@ -132,9 +132,7 @@ def login():
 def logout():
     if session.get('session-state', None) and (session.get('session-state') in session_store):
         token = session_store[session.get('session-state')]['token']
-        logout_endpoint, post_logout_uri = auth_config.logout_endpoint, auth_config.post_logout_uri
-        logout_url = auth.get_keycloak_logout_url(auth.get_oauth_session(token),
-                                                  logout_endpoint, post_logout_uri)
+        logout_url = auth.get_keycloak_logout_url(token['id_token'])
         if session.get('session-state', '') in session_store:
             del session_store[session.get('session-state')]
         session.update({'session-state': None})

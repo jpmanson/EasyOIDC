@@ -103,15 +103,13 @@ class OIDClient(object):
                                                 token=oauth_session.token['refresh_token'])
         return result.status_code == 200
 
-    @staticmethod
     # Build the logout URL to send to the Keycloak server
-    def get_keycloak_logout_url(oauth_session, logout_endpoint, post_logout_uri):
-        if oauth_session.token is None:
-            return
-        if post_logout_uri is None:
-            post_logout_uri = ''
+    # id_token is required for Keycloak server
+    def get_keycloak_logout_url(self, id_token):
+        logout_endpoint = self._config.logout_endpoint
+        post_logout_uri = self._config.post_logout_uri or ''
         url = f'{logout_endpoint}?post_logout_redirect_uri={quote(post_logout_uri)}'
-        url += f'&id_token_hint={oauth_session.token["id_token"]}'
+        url += f'&id_token_hint={id_token}'
         return url
 
     def get_auth0_logout_url(self):
@@ -126,12 +124,15 @@ class OIDClient(object):
         url = f'{path}?returnTo={quote_plus(post_logout_uri)}&client_id={client_id}'
         return url
 
-    @staticmethod
-    # Send a logout request to the Keycloak server
-    def send_keycloak_logout(oauth_session, logout_endpoint):
-        if oauth_session.token is None:
-            return
-        url = f'{logout_endpoint}?id_token_hint={oauth_session.token["id_token"]}'
+    def get_logout_url(self, id_token: str = ''):
+        if self._config.auth_service == 'keycloak':
+            return self.get_keycloak_logout_url(id_token)
+        elif self._config.auth_service == 'auth0':
+            return self.get_auth0_logout_url()
+
+    # Send a logout request
+    def call_logout_endpoint(self, id_token: str = ''):
+        url = self.get_logout_url(id_token)
         return requests.get(url)
 
     def get_user_roles(self):
