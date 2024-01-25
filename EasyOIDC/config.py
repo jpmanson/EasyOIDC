@@ -27,7 +27,7 @@ class Config(object):
         self.app_login_route = '/login'
         self.app_logout_route = '/logout'
         self.app_authorize_route = '/authorize'
-        self.unrestricted_routes = ['/', '/favicon.ico']
+        self.unrestricted_routes = ['/favicon.ico']
 
         if config_path and (os.path.exists(config_path)):
             try:

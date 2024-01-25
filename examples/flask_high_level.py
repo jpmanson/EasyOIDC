@@ -8,6 +8,11 @@ auth_config = Config('.env')
 auth = FlaskOIDClient(app, auth_config=auth_config, session_storage=session_storage)
 
 
+@app.route('/protected')
+def protected():
+    return f"This is a route"
+
+
 @app.route('/')
 def root():
     is_authenticated = auth.is_authenticated()

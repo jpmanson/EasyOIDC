@@ -1,5 +1,5 @@
 from flask import request, redirect, make_response, session
-from werkzeug.wrappers import Request as WSGIRequest
+from werkzeug.wrappers import Response, Request as WSGIRequest
 from http.cookies import SimpleCookie
 from EasyOIDC.utils import is_path_matched
 from EasyOIDC import OIDClient, Config, SessionHandler
@@ -52,14 +52,15 @@ class FlaskOIDClient(OIDClient):
             # Save user data in session store
             self._session_storage[request.args.get('state')] = {'userinfo': userinfo, 'token': dict(token)}
             if self._log_enabled:
-                self._flask_app.logger.info(f'User {userinfo["name"]} authenticated')
+                self._flask_app.logger.debug(f'User {userinfo["name"]} authenticated')
 
         except Exception as e:
             if self._log_enabled:
                 self._flask_app.logger.error(f"Authorization error: {e}")
             return redirect(self._auth_config.app_login_route)
 
-        return redirect('/')
+        referrer_path = request.cookies.get(REFERRER_VAR_NAME, '/')
+        return redirect(referrer_path)
 
     def _login_route_handler(self):
         uri, state = self.auth_server_login()
@@ -124,12 +125,20 @@ class AuthenticationMiddleware:
                 cookies = SimpleCookie(environ.get('HTTP_COOKIE', ''))
                 return cookies.get(key).value if key in cookies else None
 
+            def remove_cookie(environ, key):
+                cookies = SimpleCookie(environ.get('HTTP_COOKIE', ''))
+                if key in cookies:
+                    del cookies[key]
+                return cookies.output(header='')
+
             referrer_path = get_cookie(environ, REFERRER_VAR_NAME)
+            if self.log_enabled:
+                self.flask_app.logger.debug(f"Referrer path: '{referrer_path}'. Request.path={request.path}")
             unrestricted_page_routes = self.oidc_client.get_config().get_unrestricted_routes()
             login_route = self.oidc_client.get_config().app_login_route
             page_unrestricted = any(is_path_matched(request.path, pattern) for pattern in unrestricted_page_routes)
             if (not referrer_path) and page_unrestricted:
-                return self.wsgi_app(environ, start_response)  # Se convierte la respuesta en un iterable para WSGI
+                return self.wsgi_app(environ, start_response)
 
             # Check if session is valid
             authenticated = False
@@ -148,14 +157,14 @@ class AuthenticationMiddleware:
                     return response(environ, start_response)
             else:
                 if referrer_path:
+                    # Make a redirect response and delete cookie referrer_path
                     if self.log_enabled:
                         self.flask_app.logger.info(f'User authenticated. Redirecting to {referrer_path}')
-                    # Make a redirect response and delete cookie referrer_path
                     response = make_response(redirect(referrer_path))
                     response.set_cookie(REFERRER_VAR_NAME, '', expires=0)
                     if self.log_enabled:
                         self.flask_app.logger.debug(f'Redirecting to {referrer_path}...')
-                    return response(environ, start_response)  # Se convierte la respuesta en un iterable para WSGI
+                    return response(environ, start_response)
 
             # Calling original WSGI app
             return self.wsgi_app(environ, start_response)
