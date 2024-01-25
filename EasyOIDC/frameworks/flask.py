@@ -1,8 +1,9 @@
 from flask import request, redirect, make_response, session
 from werkzeug.wrappers import Request as WSGIRequest
 from http.cookies import SimpleCookie
-from EasyOIDC.utils import is_path_matched, get_domain_from_url
+from EasyOIDC.utils import is_path_matched
 from EasyOIDC import OIDClient, Config, SessionHandler
+from EasyOIDC.frameworks import SESSION_STATE_VAR_NAME, REFERRER_VAR_NAME
 
 
 class FlaskOIDClient(OIDClient):
@@ -25,7 +26,7 @@ class FlaskOIDClient(OIDClient):
             self._auth_config.unrestricted_routes = kwargs['unrestricted_routes']
 
         self.set_roles_getter(
-            lambda: session_storage[session.get('session-state', '')].get('userinfo', {}).get('realm_access', {}).get(
+            lambda: session_storage[session.get(SESSION_STATE_VAR_NAME, '')].get('userinfo', {}).get('realm_access', {}).get(
                 'roles', []))
 
         # Add Flask route /authorize to method authorize_route_handler
@@ -41,13 +42,13 @@ class FlaskOIDClient(OIDClient):
     def _authorize_route_handler(self):
         try:
             # Ensure the 'state' parameter matches the one stored in the user's session
-            assert request.args.get('state') == session.get('session-state')
+            assert request.args.get('state') == session.get(SESSION_STATE_VAR_NAME)
 
             token, oauth_session = self.get_token(request.url)
             userinfo = self.get_user_info(oauth_session)
 
             # Update the session with the new state and user info
-            session.update({'session-state': request.args.get('state')})
+            session.update({SESSION_STATE_VAR_NAME: request.args.get('state')})
             # Save user data in session store
             self._session_storage[request.args.get('state')] = {'userinfo': userinfo, 'token': dict(token)}
             if self._log_enabled:
@@ -65,14 +66,14 @@ class FlaskOIDClient(OIDClient):
 
         # Create a response object
         response = make_response(redirect(uri))
-        session.update({'session-state': state})
+        session.update({SESSION_STATE_VAR_NAME: state})
         self._session_storage[state] = {'userinfo': None, 'token': None}
 
         # Redirect the user to the authorization server
         return response
 
     def _get_current_token(self):
-        state = session.get('session-state', '')
+        state = session.get(SESSION_STATE_VAR_NAME, '')
         if state in self._session_storage:
             return self._session_storage[state]['token']
         return None
@@ -83,8 +84,8 @@ class FlaskOIDClient(OIDClient):
         if token:
             if self._auth_config.logout_endpoint:
                 logout_url = self.get_logout_url(token.get('id_token', None))
-            del self._session_storage[session.get('session-state')]
-        session.update({'session-state': None})
+            del self._session_storage[session.get(SESSION_STATE_VAR_NAME)]
+        session.update({SESSION_STATE_VAR_NAME: None})
         return logout_url
 
     def _logout_route_handler(self):
@@ -95,13 +96,13 @@ class FlaskOIDClient(OIDClient):
             return redirect(self._auth_config.post_logout_uri)
 
     def is_authenticated(self):
-        state = session.get('session-state', '')
+        state = session.get(SESSION_STATE_VAR_NAME, '')
         if (state in self._session_storage) and (self._session_storage[state]['userinfo']):
             return True
         return False
 
     def get_userinfo(self):
-        state = session.get('session-state', '')
+        state = session.get(SESSION_STATE_VAR_NAME, '')
         if (state in self._session_storage) and (self._session_storage[state]['userinfo']):
             return self._session_storage[state]['userinfo']
         return None
@@ -123,7 +124,7 @@ class AuthenticationMiddleware:
                 cookies = SimpleCookie(environ.get('HTTP_COOKIE', ''))
                 return cookies.get(key).value if key in cookies else None
 
-            referrer_path = get_cookie(environ, 'referrer_path')
+            referrer_path = get_cookie(environ, REFERRER_VAR_NAME)
             unrestricted_page_routes = self.oidc_client.get_config().get_unrestricted_routes()
             login_route = self.oidc_client.get_config().app_login_route
             page_unrestricted = any(is_path_matched(request.path, pattern) for pattern in unrestricted_page_routes)
@@ -132,8 +133,8 @@ class AuthenticationMiddleware:
 
             # Check if session is valid
             authenticated = False
-            if session.get('session-state', None) and (session.get('session-state') in self.session_storage):
-                token = self.session_storage[session.get('session-state')]['token']
+            if session.get(SESSION_STATE_VAR_NAME, None) and (session.get(SESSION_STATE_VAR_NAME) in self.session_storage):
+                token = self.session_storage[session.get(SESSION_STATE_VAR_NAME)]['token']
 
                 # Check if the user is authenticated against the OIDC server
                 authenticated = self.oidc_client.is_valid_oidc_session(self.oidc_client.get_oauth_session(token))
@@ -141,7 +142,7 @@ class AuthenticationMiddleware:
             if not authenticated:
                 if not page_unrestricted:
                     response = make_response(redirect(login_route))
-                    response.set_cookie('referrer_path', request.path)
+                    response.set_cookie(REFERRER_VAR_NAME, request.path)
                     if self.log_enabled:
                         self.flask_app.logger.debug(f'Redirecting to {login_route}...')
                     return response(environ, start_response)
@@ -151,7 +152,7 @@ class AuthenticationMiddleware:
                         self.flask_app.logger.info(f'User authenticated. Redirecting to {referrer_path}')
                     # Make a redirect response and delete cookie referrer_path
                     response = make_response(redirect(referrer_path))
-                    response.set_cookie('referrer_path', '', expires=0)
+                    response.set_cookie(REFERRER_VAR_NAME, '', expires=0)
                     if self.log_enabled:
                         self.flask_app.logger.debug(f'Redirecting to {referrer_path}...')
                     return response(environ, start_response)  # Se convierte la respuesta en un iterable para WSGI
