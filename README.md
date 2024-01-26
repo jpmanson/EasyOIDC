@@ -2,11 +2,11 @@
 
 EasyOIDC is a Python library that provides a simple interface to the OpenID Connect protocol. It is designed to be easy to use and to integrate into existing applications. It is built on top of the Authlib library.
 
-EasyOIDC can basically adapt to any web framework that supports session variables, route definition, and redirection. As an example, integration examples with Flask, NiceGUI, Streamlit and Taipy are provided.
+EasyOIDC can basically adapt to any web framework that supports session variables, route definition, and redirection. As an example, integration examples with [Flask](https://github.com/pallets/flask), [NiceGUI](https://github.com/zauberzeug/nicegui/), [Streamlit](https://github.com/streamlit/streamlit) and [Taipy](https://github.com/Avaiga/taipy) are provided.
 
-In addition, the library has high-level classes, to integrate even more easily with Flask, NiceGUI and Taipy. The idea of the project is to gradually incorporate high-level support for new web frameworks from the Python world.
+In addition, the library has high-level classes, to integrate even more easily with [Flask](https://github.com/pallets/flask), [NiceGUI](https://github.com/zauberzeug/nicegui/) and [Taipy](https://github.com/Avaiga/taipy). The idea of the project is to gradually incorporate high-level support for new web frameworks from the Python world.
 
-EasyOIDC has been tested with OIDC backends such as Keycloak, Google and Auth0, and could connect to virtually any [OpenID Connect](https://en.wikipedia.org/wiki/OpenID#OpenID_Connect_(OIDC)) compatible server.
+EasyOIDC has been tested with OIDC backends such as [Keycloak](https://www.keycloak.org/), [Google](https://developers.google.com/identity/openid-connect/openid-connect?hl=es-419) and [Auth0](https://auth0.com/), and could connect to virtually any [OpenID Connect](https://en.wikipedia.org/wiki/OpenID#OpenID_Connect_(OIDC)) compatible server.
 
 ## Installation
 
