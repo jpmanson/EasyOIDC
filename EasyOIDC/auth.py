@@ -15,26 +15,13 @@ class OIDClient(object):
         self._log_enabled = log_enabled
 
         try:
-            self.validate_config()
+            assert self._config.is_valid_config()
         except Exception as e:
             try:
                 self._config.load_from_wellknown()
-                self.validate_config()
+                assert self._config.is_valid_config()
             except Exception as e:
                 raise Exception(f"Error loading configuration: {e}")
-
-    def validate_config(self):
-        try:
-            assert self._config.authorization_endpoint is not None
-            assert self._config.token_endpoint is not None
-            assert self._config.userinfo_endpoint is not None
-            assert self._config.redirect_uri is not None
-            assert self._config.client_id is not None
-            assert self._config.client_secret is not None
-            assert self._config.cookie_secret_key is not None
-            assert self._config.scope is not None
-        except Exception as e:
-            raise Exception(f"Missing configuration parameters. {e}")
 
     def set_roles_getter(self, func: callable):
         self._roles_getter = func

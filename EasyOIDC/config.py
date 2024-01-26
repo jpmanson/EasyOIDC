@@ -3,6 +3,14 @@ import json
 import requests
 
 
+def is_valid_url(url):
+    if url is None:
+        return False
+    if url.find('http://') == 0 or url.find('https://') == 0:
+        return True
+    return False
+
+
 class Config(object):
     well_known_openid_url = None
     authorization_endpoint = None
@@ -125,6 +133,19 @@ class Config(object):
     def __iter__(self):
         return self.__dict__.items().__iter__()
 
+    def is_valid_config(self):
+        try:
+            assert is_valid_url(self.authorization_endpoint)
+            assert is_valid_url(self.token_endpoint)
+            assert is_valid_url(self.userinfo_endpoint)
+            assert is_valid_url(self.redirect_uri)
+            assert self.client_id is not None
+            assert self.client_secret is not None
+            assert self.cookie_secret_key is not None
+            assert isinstance(self.scope, list)
+        except Exception as e:
+            raise Exception(f"Missing configuration parameters. {e}")
+        return True
 
 
 
