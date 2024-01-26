@@ -1,6 +1,6 @@
 ## Introduction
 
-EasyOIDC is a Python library that provides a simple interface to the OpenID Connect protocol. It is designed to be easy to use and to integrate into existing applications. It is built on top of the Authlib library.
+EasyOIDC is a Python library that provides a simple interface to the [OpenID Connect](https://en.wikipedia.org/wiki/OpenID#OpenID_Connect_(OIDC)) protocol. It is designed to be easy to use and to integrate into existing applications. It is built on top of the Authlib library.
 
 EasyOIDC can basically adapt to any web framework that supports session variables, route definition, and redirection. As an example, integration examples with [Flask](https://github.com/pallets/flask), [NiceGUI](https://github.com/zauberzeug/nicegui/), [Streamlit](https://github.com/streamlit/streamlit) and [Taipy](https://github.com/Avaiga/taipy) are provided.
 
