@@ -5,7 +5,7 @@ README = (Path(__file__).parent/"README.md").read_text()
 
 setuptools.setup(
     name="EasyOIDC",
-    version="0.1.4",
+    version="0.1.5",
     author="Juan Pablo Manson",
     author_email="jpmanson@gmail.com",
     description="Easy integration with OIDC authentication servers",
@@ -23,4 +23,9 @@ setuptools.setup(
         "python-decouple>=3.8",
         "redis_collections>=0.12.0",
     ],
+    extras_require={
+        'flask': ['Flask>=2.3.3'],
+        'nicegui': ['nicegui>=1.4.0'],
+        'taipy': ['taipy>=2.4.0'],
+    }
 )

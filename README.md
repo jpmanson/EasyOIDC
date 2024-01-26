@@ -14,6 +14,13 @@ EasyOIDC has been tested with OIDC backends such as [Keycloak](https://www.keycl
 pip install easyoidc
 ```
 
+If you are going to use it with a specific web framework, you can install it like this: 
+```bash
+pip install easyoidc[flask]
+pip install easyoidc[nicegui]
+pip install easyoidc[taipy]
+```
+
 ## Usage
 
 ### Flask
