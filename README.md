@@ -78,3 +78,17 @@ token_revoke_endpoint = https://oauth2.googleapis.com/revoke
 redirect_uri = http://localhost:5000/authorize
 scope = openid,profile,email
 ```
+### Server session data storage
+
+EasyOIDC needs to store some data in the server session, like tokens and authenticated user information. The library provides a SessionHandler class that can be used to store the session data in memory, in a file or in a Redis database. The SessionHandler class is initialized as follows:
+
+```python
+from EasyOIDC import SessionHandler
+
+# Redis memory storage
+session_storage = SessionHandler(mode='redis')
+
+# or for file storage
+session_storage = SessionHandler(mode='shelve')
+
+```
