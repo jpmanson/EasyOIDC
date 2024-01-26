@@ -10,6 +10,8 @@ EasyOIDC has been tested with OIDC backends such as [Keycloak](https://www.keycl
 
 ## Installation
 
+The library is available via PyPi (https://pypi.org/project/EasyOIDC/)
+
 ```bash
 pip install easyoidc
 ```
