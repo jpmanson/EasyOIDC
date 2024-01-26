@@ -5,7 +5,7 @@ README = (Path(__file__).parent/"README.md").read_text()
 
 setuptools.setup(
     name="EasyOIDC",
-    version="0.1.2",
+    version="0.1.3",
     author="Juan Pablo Manson",
     author_email="jpmanson@gmail.com",
     description="Easy integration with OIDC authentication servers",
