@@ -147,3 +147,5 @@ bak/*
 session_data/*
 .env
 .idea
+.streamlit
+.nicegui
