@@ -78,9 +78,3 @@ class SessionHandler:
         elif self.mode == 'shelve':
             return self.shelve_store.keys()
 
-
-if __name__ == '__main__':
-    session_store = SessionHandler(mode='redis')
-    print(session_store.get('test', 'default'))
-    session_store.set('test', 'other')
-    print(session_store.get('test', 'default'))

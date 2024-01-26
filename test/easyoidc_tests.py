@@ -1,6 +1,5 @@
 import pytest
-from EasyOIDC.auth import OIDClient
-from EasyOIDC.config import Config
+from EasyOIDC import OIDClient, SessionHandler, Config
 
 
 def test_validate_config():
@@ -33,3 +32,15 @@ def test_validate_config():
                           client_secret='client-secret',
                           cookie_secret_key='secret-key')
     client = OIDClient(valid_config)
+
+
+def test_session_storage():
+    session_store = SessionHandler(mode='redis')
+    session_store.get('test', 'default')
+    session_store.set('test', 'other')
+    assert session_store.get('test', 'default') == 'other'
+
+    session_store = SessionHandler(mode='shelve')
+    session_store.get('test', 'default')
+    session_store.set('test', 'other')
+    assert session_store.get('test', 'default') == 'other'
