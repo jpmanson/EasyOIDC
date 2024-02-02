@@ -9,10 +9,10 @@ from EasyOIDC.frameworks import SESSION_STATE_VAR_NAME, REFERRER_VAR_NAME
 from nicegui.app import App
 import logging
 
-logger = logging.getLogger(__name__)
-
 
 class NiceGUIOIDClient(OIDClient):
+    logger = logging.getLogger(__name__)
+
     def __init__(self, nicegui_app: App, auth_config: Config = None, session_storage: SessionHandler = None,
                  log_enabled: bool = True, **kwargs):
         if auth_config is None:
@@ -32,7 +32,11 @@ class NiceGUIOIDClient(OIDClient):
             nicegui_routes = [r.path.replace('{key:path}', '*').replace('{key}/{path:path}', '*') for r in nicegui_app.routes if isinstance(r, Route)]
             self._auth_config.unrestricted_routes = nicegui_routes + ['/_nicegui/*']
 
+        if 'logger' in kwargs:
+            self.logger = kwargs['logger']
+
         auth_middleware = AuthMiddleware
+        auth_middleware.logger = self.logger
         auth_middleware.session_storage = session_storage
         auth_middleware.oidc_client = self
         auth_middleware.log_enabled = log_enabled
@@ -54,6 +58,9 @@ class NiceGUIOIDClient(OIDClient):
         # Add FastAPI route /logout to method logout_route_handler
         self._nicegui_app.add_route(auth_config.app_logout_route, self._logout_route_handler)
 
+    def set_logger(self, logger):
+        self.logger = logger
+
     def _authorize_route_handler(self, request: Request) -> Response:
         try:
             state = request.query_params['state']
@@ -64,10 +71,10 @@ class NiceGUIOIDClient(OIDClient):
             self._session_storage[state] = {'userinfo': userinfo, 'token': dict(token)}
 
             if self._log_enabled:
-                logger.debug('Authentication successful.')
+                self.logger.debug('Authentication successful.')
         except Exception as e:
             if self._log_enabled:
-                logger.debug(f"Authentication error: '{e}'. Redirecting to login page...")
+                self.logger.debug(f"Authentication error: '{e}'. Redirecting to login page...")
             RedirectResponse(self._auth_config.app_login_route)
 
         referrer_path = self._nicegui_app.storage.user.get(REFERRER_VAR_NAME, '')
@@ -123,6 +130,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
     oidc_client = None
     log_enabled = None
     nicegui_app = None
+    logger = logging.getLogger(__name__)
 
     async def dispatch(self, request: Request, call_next):
         authenticated = False
@@ -144,13 +152,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
             if not page_unrestricted:
                 self.nicegui_app.storage.user[REFERRER_VAR_NAME] = '/' if request.url.path is None else request.url.path
                 if self.log_enabled:
-                    logger.debug(f"After login will redirect to '{request.url.path}'")
+                    self.logger.debug(f"After login will redirect to '{request.url.path}'")
                 return RedirectResponse(login_route)
         else:
             referrer_path = self.nicegui_app.storage.user.get(REFERRER_VAR_NAME, '')
             if referrer_path:
                 self.nicegui_app.storage.user[REFERRER_VAR_NAME] = ''
                 if self.log_enabled:
-                    logger.debug('Redirecting to', referrer_path)
+                    self.logger.debug('Redirecting to', referrer_path)
                 return RedirectResponse(referrer_path)
         return await call_next(request)
