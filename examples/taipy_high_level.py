@@ -20,7 +20,7 @@ with tgb.Page() as home_page:
 
 pages = {
     "page1": Markdown("#HolaPage1"),
-	"page2": Markdown("#HolaPage2"),
+	"page2": home_page,
     "/": Markdown("<center><|navbar|></center>")
 }
 
