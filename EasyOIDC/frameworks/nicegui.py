@@ -154,9 +154,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 del self.session_storage[session_state]
             # Check if the requested path matches with unrestricted_page_routes.
             if not page_unrestricted:
-                self.nicegui_app.storage.user[REFERRER_VAR_NAME] = '/' if request.url.path is None else request.url.path
+                path_without_domain = request.url.path + ('?' + request.url.query if request.url.query else '')
+                self.nicegui_app.storage.user[REFERRER_VAR_NAME] = '/' if path_without_domain is None \
+                    else path_without_domain
                 if self.log_enabled:
-                    self.logger.debug(f"After login will redirect to '{request.url.path}'")
+                    self.logger.debug(
+                        f"After login will redirect to '{self.nicegui_app.storage.user[REFERRER_VAR_NAME]}'")
                 return RedirectResponse(login_route)
         else:
             referrer_path = self.nicegui_app.storage.user.get(REFERRER_VAR_NAME, '')
