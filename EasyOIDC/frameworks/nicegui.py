@@ -29,8 +29,10 @@ class NiceGUIOIDClient(OIDClient):
             self._auth_config.unrestricted_routes = kwargs['unrestricted_routes']
         else:
             # Get all routes from nicegui app
-            nicegui_routes = [r.path.replace('{key:path}', '*').replace('{key}/{path:path}', '*') for r in nicegui_app.routes if isinstance(r, Route)]
-            self._auth_config.unrestricted_routes = nicegui_routes + ['/_nicegui/*']
+            nicegui_routes = ([r.path.replace('{key:path}', '*').replace('{key}/{path:path}', '*') for r in
+                              nicegui_app.routes if (type(r) == Route) or (r.path.startswith('/_nicegui'))] +
+                              ['/_nicegui/*'])
+            self._auth_config.unrestricted_routes += nicegui_routes
 
         if 'logger' in kwargs:
             self.logger = kwargs['logger']
@@ -46,7 +48,9 @@ class NiceGUIOIDClient(OIDClient):
         self.set_redirector(lambda url: RedirectResponse(url))
 
         self.set_roles_getter(
-            lambda: self._session_storage[nicegui_app.storage.user.get(SESSION_STATE_VAR_NAME, '')].get('userinfo', {}).get('realm_access', {}).get(
+            lambda: self._session_storage[nicegui_app.storage.user.get(SESSION_STATE_VAR_NAME, '')].get('userinfo',
+                                                                                                        {}).get(
+                'realm_access', {}).get(
                 'roles', []))
 
         # Add FastAPI route /login to method login_route_handler
