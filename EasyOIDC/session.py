@@ -1,4 +1,5 @@
 from redis_collections import Dict
+import os
 import shelve
 import redis
 
@@ -24,6 +25,9 @@ class SessionHandler:
             self.redis_dict = Dict(key=namespace, redis=self.redis)
         elif mode == 'shelve':
             filename = kwargs.get('filename', 'session_data/sessions.db')
+            directory = os.path.dirname(filename)
+            if directory:
+                os.makedirs(directory, exist_ok=True)
             self.shelve_store = shelve.open(filename)
         else:
             raise Exception(f"Unknown mode: {mode}")
@@ -77,4 +81,3 @@ class SessionHandler:
             return self.redis_dict.keys()
         elif self.mode == 'shelve':
             return self.shelve_store.keys()
-

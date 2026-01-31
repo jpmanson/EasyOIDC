@@ -150,6 +150,7 @@ session_data/*
 .streamlit
 .nicegui
 GEMINI.md
+AGENTS.md
 .venv
 easyoidc.egg-info
 .claude
