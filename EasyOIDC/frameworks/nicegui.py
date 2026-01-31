@@ -79,7 +79,7 @@ class NiceGUIOIDClient(OIDClient):
         except Exception as e:
             if self._log_enabled:
                 self.logger.debug(f"Authentication error: '{e}'. Redirecting to login page...")
-            RedirectResponse(self._auth_config.app_login_route)
+            return RedirectResponse(self._auth_config.app_login_route)
 
         referrer_path = self._nicegui_app.storage.user.get(REFERRER_VAR_NAME, '')
         if referrer_path:

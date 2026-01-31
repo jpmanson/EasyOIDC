@@ -150,3 +150,10 @@ session_data/*
 .streamlit
 .nicegui
 GEMINI.md
+.venv
+easyoidc.egg-info
+.claude
+
+# uv
+uv.lock
+.python-version
