@@ -110,14 +110,15 @@ class Config(object):
         url = wellknown_url or self.well_known_openid_url
         response = requests.get(url)
         if response.status_code == 200:
-                    data = json.loads(response.text)
-                    self.authorization_endpoint = data['authorization_endpoint']
-                    self.token_endpoint = data['token_endpoint']
-                    self.userinfo_endpoint = data['userinfo_endpoint']
-                    self.token_revoke_endpoint = data.get('revocation_endpoint')
-                    if not self.scope:
-                        # If not defined, copy the scopes_supported from the server.
-                        self.scope = data['scopes_supported']            else:
+            data = json.loads(response.text)
+            self.authorization_endpoint = data['authorization_endpoint']
+            self.token_endpoint = data['token_endpoint']
+            self.userinfo_endpoint = data['userinfo_endpoint']
+            self.token_revoke_endpoint = data.get('revocation_endpoint')
+            if not self.scope:
+                # If not defined, copy the scopes_supported from the server.
+                self.scope = data['scopes_supported']
+            else:
                 # Validate self.scope with the scopes_supported by the server.
                 for scope in self.scope:
                     if scope not in data['scopes_supported']:
