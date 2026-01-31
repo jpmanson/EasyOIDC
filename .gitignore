@@ -157,3 +157,4 @@ easyoidc.egg-info
 # uv
 uv.lock
 .python-version
+issues
