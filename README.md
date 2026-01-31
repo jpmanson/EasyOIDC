@@ -155,3 +155,5 @@ session_storage = SessionHandler(mode='redis')
 session_storage = SessionHandler(mode='shelve')
 
 ```
+
+**Note:** When using `nicegui` with its auto-reloading feature, it is recommended to use the `redis` mode for the `SessionHandler`. The `shelve` mode is not thread-safe and can cause issues when multiple processes access the same session file.

@@ -94,8 +94,8 @@ class NiceGUIOIDClient(OIDClient):
         return RedirectResponse(uri)
 
     def _get_current_token(self):
-        state = self._nicegui_app.storage.user.get(SESSION_STATE_VAR_NAME, '')
-        if state in self._session_storage:
+        state = self._nicegui_app.storage.user.get(SESSION_STATE_VAR_NAME, None)
+        if state and state in self._session_storage:
             return self._session_storage[state]['token']
         return None
 
@@ -118,13 +118,13 @@ class NiceGUIOIDClient(OIDClient):
 
     def is_authenticated(self):
         state = self._nicegui_app.storage.user.get(SESSION_STATE_VAR_NAME, None)
-        if (state in self._session_storage) and (self._session_storage[state]['userinfo']):
+        if state and (state in self._session_storage) and (self._session_storage[state]['userinfo']):
             return True
         return False
 
     def get_userinfo(self):
         state = self._nicegui_app.storage.user.get(SESSION_STATE_VAR_NAME, None)
-        if (state in self._session_storage) and (self._session_storage[state]['userinfo']):
+        if state and (state in self._session_storage) and (self._session_storage[state]['userinfo']):
             return self._session_storage[state]['userinfo']
         return None
 
