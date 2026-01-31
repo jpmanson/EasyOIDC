@@ -1,6 +1,6 @@
 [project]
 name = "EasyOIDC"
-version = "0.1.10"
+version = "0.1.11"
 description = "Easy integration with OIDC authentication servers"
 readme = "README.md"
 requires-python = ">=3.9"
