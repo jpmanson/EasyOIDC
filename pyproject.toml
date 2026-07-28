@@ -25,9 +25,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Almacenamiento de sesiones en Redis (opcional). Se usa redis-py directamente,
-# sin tope de versión. Se mantiene fuera de las dependencias core para no
-# imponer Redis a quienes usan los modos 'memory' o 'shelve'.
+# Redis session storage (optional). Uses redis-py directly, with no version
+# cap. Kept out of the core dependencies so users of the 'memory' or 'shelve'
+# modes are not forced to install Redis.
 redis = ["redis>=4.0.0"]
 flask = ["flask>=2.3.3"]
 nicegui = ["nicegui>=1.4.0", "fastapi"]

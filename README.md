@@ -159,16 +159,36 @@ session_storage = SessionHandler(mode='shelve')
 session_storage = SessionHandler(mode='redis')
 ```
 
-**Redis is optional.** Redis support uses `redis-py` directly (no version cap)
-and is not installed by default. Install it with `pip install easyoidc[redis]`.
-It is kept out of the core dependencies so projects using the `memory` or
-`shelve` modes don't pull Redis in. Sessions are stored as fields of a single
-Redis hash (one key per `namespace`), serialized with `pickle`.
+#### Choosing a backend
 
-**Note:** The `shelve` mode is not thread-safe (on Python 3.13+ its default
-`dbm.sqlite3` backend raises across threads), so avoid it with multi-threaded
-WSGI servers or auto-reloading frameworks like `nicegui`. Use `memory` for
-single-process apps or `redis` for multi-process/production deployments.
+| Mode | Persistence | Thread-safe | Multi-process | Dependencies | Best for |
+|------|-------------|-------------|---------------|--------------|----------|
+| `memory` *(default)* | No — lost on restart | ✅ Yes | ❌ No (per-process state) | None | Development, testing, single-process apps |
+| `shelve` | ✅ On disk | ⚠️ No (see note) | ❌ No | None (stdlib) | Simple single-process apps needing persistence across restarts |
+| `redis` | ✅ In Redis | ✅ Yes | ✅ Yes (shared store) | `easyoidc[redis]` + a Redis server | Production, multi-worker/multi-process deployments |
+
+**Pros & cons**
+
+- **`memory`** — zero setup, thread-safe, fastest. But sessions vanish on
+  restart and are **not shared** between processes/workers, so a multi-worker
+  server (e.g. Gunicorn with several workers) will see inconsistent logins.
+- **`shelve`** — persists to a local file with no external service. But the
+  default Python 3.13+ backend (`dbm.sqlite3`) is **not thread-safe** and it is
+  single-host/single-process only, so it's unsuitable for multi-threaded WSGI
+  servers or auto-reloading frameworks like `nicegui`.
+- **`redis`** — the only option that is both thread-safe **and** shared across
+  processes/hosts, making it the right choice for production and horizontally
+  scaled deployments. It requires the optional extra and a running Redis. Uses
+  `redis-py` directly (no version cap); sessions are stored as fields of a
+  single Redis hash (one key per `namespace`), serialized with `pickle`.
+
+**Redis is optional** and kept out of the core dependencies, so projects using
+`memory` or `shelve` don't pull Redis in. Install it with
+`pip install easyoidc[redis]`.
+
+**Rule of thumb:** use `memory` for development and single-process apps,
+`shelve` when you need on-disk persistence in a single process, and `redis` for
+anything multi-process or production.
 
 ## Testing against a real OIDC server
 

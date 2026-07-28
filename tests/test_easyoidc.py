@@ -53,18 +53,18 @@ def test_session_storage_shelve(tmp_path):
 
 
 def test_session_storage_redis():
-    # Modo redis: requiere redis-py (extra opcional) y un Redis accesible.
+    # redis mode: requires redis-py (optional extra) and a reachable Redis.
     pytest.importorskip('redis')
     import redis
     try:
         redis.StrictRedis().ping()
     except Exception:
-        pytest.skip('No hay un servidor Redis accesible')
+        pytest.skip('No reachable Redis server')
     _exercise_store(SessionHandler(mode='redis'))
 
 
 def test_session_storage_redis_missing_dep(monkeypatch):
-    # Sin redis-py instalado, el modo redis debe dar un error claro.
+    # Without redis-py installed, redis mode must raise a clear error.
     import builtins
     real_import = builtins.__import__
 

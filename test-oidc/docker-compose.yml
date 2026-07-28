@@ -1,11 +1,11 @@
 services:
   oidc:
-    # Servidor OIDC de prueba, liviano y sin configuración.
-    # Expone discovery en http://localhost:8080/default/.well-known/openid-configuration
-    # y una página de login interactiva donde podés escribir cualquier usuario.
+    # Lightweight, zero-config test OIDC server.
+    # Exposes discovery at http://localhost:8080/default/.well-known/openid-configuration
+    # and an interactive login page where you can type any user.
     image: ghcr.io/navikt/mock-oauth2-server:2.1.10
     ports:
       - "8080:8080"
     environment:
-      # Escucha en todas las interfaces del contenedor
+      # Listen on all interfaces inside the container
       SERVER_PORT: "8080"

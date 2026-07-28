@@ -1,36 +1,36 @@
-"""Ejemplo mínimo para probar EasyOIDC contra un servidor OIDC real (local).
+"""Minimal example to test EasyOIDC against a real (local) OIDC server.
 
-Uso:
-    1) docker compose up          # levanta el mock-oauth2-server en :8080
-    2) python app.py              # levanta esta app Flask en :5000
-    3) Abrí http://localhost:5000 y hacé click en "Login"
+Usage:
+    1) docker compose up          # starts mock-oauth2-server on :8080
+    2) python app.py              # starts this Flask app on :5000
+    3) Open http://localhost:5000 and click "Login"
 
-Usa SessionHandler en modo 'memory' para no depender de Redis.
+Uses SessionHandler in 'memory' mode so it doesn't depend on Redis.
 """
 import os
 from flask import Flask
 from EasyOIDC import Config, SessionHandler
 from EasyOIDC.frameworks.flask import FlaskOIDClient
 
-# Carga el .env.mock que está junto a este archivo (sin importar el cwd)
+# Load the .env.mock sitting next to this file (regardless of the cwd)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ENV_PATH = os.path.join(BASE_DIR, '.env.mock')
 
 app = Flask(__name__)
 
-# Store en memoria (thread-safe, sin dependencias). Para producción: mode='redis'.
+# In-memory store (thread-safe, no dependencies). For production: mode='redis'.
 session_storage = SessionHandler(mode='memory')
 
-# Al construir el cliente, EasyOIDC descarga el discovery del mock
-# y resuelve authorization/token/userinfo automáticamente.
+# When the client is built, EasyOIDC fetches the mock's discovery document
+# and resolves authorization/token/userinfo automatically.
 auth_config = Config(ENV_PATH)
 auth = FlaskOIDClient(app, auth_config=auth_config, session_storage=session_storage)
 
 
 @app.route('/protected')
 def protected():
-    # El middleware ya exige sesión válida para llegar acá.
-    return "Accediste a una ruta protegida ✅ <br><a href='/'>Volver</a>"
+    # The middleware already requires a valid session to reach here.
+    return "You reached a protected route ✅ <br><a href='/'>Back</a>"
 
 
 @app.route('/')
@@ -38,15 +38,15 @@ def root():
     if auth.is_authenticated():
         userinfo = auth.get_userinfo()
         return (
-            "Bienvenido 👋<br>"
-            f"Autenticado como: <b>{userinfo.get('sub')}</b><br>"
+            "Welcome 👋<br>"
+            f"Authenticated as: <b>{userinfo.get('sub')}</b><br>"
             f"<pre>{userinfo}</pre>"
-            "<a href='/protected'>Ir a ruta protegida</a> | "
+            "<a href='/protected'>Go to protected route</a> | "
             "<a href='/logout'>Logout</a>"
         )
-    return "No autenticado.<br><a href='/login'>Login</a>"
+    return "Not authenticated.<br><a href='/login'>Login</a>"
 
 
 if __name__ == "__main__":
-    # host/port coinciden con redirect_uri del .env.mock
+    # host/port match the redirect_uri in .env.mock
     app.run(host="localhost", port=5000, debug=True)

@@ -5,32 +5,32 @@ import threading
 
 
 class SessionHandler:
-    """Almacenamiento de sesiones para EasyOIDC.
+    """Session storage for EasyOIDC.
 
-    Modos disponibles:
-      - 'memory': dict en memoria protegido por lock. Thread-safe y sin
-        dependencias externas. Ideal para desarrollo/tests. Las sesiones se
-        pierden al reiniciar el proceso.
-      - 'shelve': persistencia en disco vía la librería estándar ``shelve``.
-        Nota: en Python 3.13+ el backend por defecto (``dbm.sqlite3``) no es
-        thread-safe, por lo que no conviene con servidores WSGI multihilo.
-      - 'redis': persistencia en Redis vía ``redis-py`` (dependencia opcional).
-        Instalar con: ``pip install easyoidc[redis]``. Las sesiones se guardan
-        como campos de un hash de Redis (una clave por ``namespace``),
-        serializadas con ``pickle``.
+    Available modes:
+      - 'memory': in-memory dict guarded by a lock. Thread-safe and free of
+        external dependencies. Ideal for development/testing. Sessions are lost
+        when the process restarts.
+      - 'shelve': on-disk persistence via the standard-library ``shelve``.
+        Note: on Python 3.13+ the default backend (``dbm.sqlite3``) is not
+        thread-safe, so it is unsuitable for multi-threaded WSGI servers.
+      - 'redis': Redis persistence via ``redis-py`` (optional dependency).
+        Install with: ``pip install easyoidc[redis]``. Sessions are stored as
+        fields of a Redis hash (one key per ``namespace``), serialized with
+        ``pickle``.
     """
 
     def __init__(self, mode='memory', namespace='sessions', **kwargs):
         self.mode = mode
         if mode == 'redis':
-            # Import diferido: redis-py es una dependencia opcional. Solo se
-            # importa si realmente se usa el modo redis.
+            # Deferred import: redis-py is an optional dependency. It is only
+            # imported when the redis mode is actually used.
             try:
                 import redis
             except ImportError as e:
                 raise ImportError(
-                    "El modo 'redis' requiere las dependencias opcionales de "
-                    "Redis. Instalá con: pip install easyoidc[redis]"
+                    "The 'redis' mode requires the optional Redis "
+                    "dependencies. Install with: pip install easyoidc[redis]"
                 ) from e
 
             self.namespace = namespace

@@ -14,12 +14,12 @@ jobs:
         python-version: ['3.9', '3.11', '3.13']
 
     services:
-      # Servidor OIDC de prueba, liviano y sin configuración.
+      # Lightweight, zero-config test OIDC server.
       oidc:
         image: ghcr.io/navikt/mock-oauth2-server:2.1.10
         ports:
           - 8080:8080
-      # Redis para ejercitar SessionHandler(mode='redis').
+      # Redis to exercise SessionHandler(mode='redis').
       redis:
         image: redis:7
         ports:
@@ -45,11 +45,11 @@ jobs:
         run: |
           for i in $(seq 1 30); do
             if curl -sf "$MOCK_OIDC_URL" >/dev/null; then
-              echo "mock-oauth2-server listo"; exit 0
+              echo "mock-oauth2-server ready"; exit 0
             fi
             sleep 2
           done
-          echo "El mock OIDC no respondió a tiempo"; exit 1
+          echo "The mock OIDC server did not respond in time"; exit 1
 
       - name: Run tests
         run: pytest -v

@@ -1,71 +1,70 @@
-# Prueba local de EasyOIDC contra un OIDC real
+# Local EasyOIDC testing against a real OIDC server
 
-Entorno mínimo y reproducible para probar el flujo OIDC completo (login →
-token → userinfo → rutas protegidas → logout) contra un servidor OpenID
-Connect **real pero liviano**, sin tener que configurar Keycloak.
+A minimal, reproducible environment to test the full OIDC flow (login → token →
+userinfo → protected routes → logout) against a **real but lightweight** OpenID
+Connect server, without having to configure Keycloak.
 
-Usa [`mock-oauth2-server`](https://github.com/navikt/mock-oauth2-server):
-un único contenedor, **sin configuración**, que expone el discovery estándar
-y una **página de login interactiva** donde podés escribir cualquier usuario.
+It uses [`mock-oauth2-server`](https://github.com/navikt/mock-oauth2-server): a
+single, **zero-config** container that exposes the standard discovery document
+and an **interactive login page** where you can type any user.
 
-## Requisitos
+## Requirements
 
-- Docker (para el servidor OIDC)
-- Python con EasyOIDC + Flask instalados:
+- Docker (for the OIDC server)
+- Python with EasyOIDC + Flask installed:
 
   ```bash
-  pip install -e ..[flask]      # o: pip install easyoidc[flask]
+  pip install -e ..[flask]      # or: pip install easyoidc[flask]
   ```
 
-## Pasos
+## Steps
 
-1. Levantá el servidor OIDC:
+1. Start the OIDC server:
 
    ```bash
    cd test-oidc
-   docker compose up          # o, con Compose v1:  docker-compose up
+   docker compose up          # or, with Compose v1:  docker-compose up
    ```
 
-   El discovery queda en
+   Discovery is served at
    `http://localhost:8080/default/.well-known/openid-configuration`.
 
-2. En otra terminal, levantá la app de ejemplo:
+2. In another terminal, start the example app:
 
    ```bash
    cd test-oidc
    python app.py
    ```
 
-3. Abrí <http://localhost:5000> y hacé click en **Login**.
+3. Open <http://localhost:5000> and click **Login**.
 
-4. En la pantalla del mock, escribí cualquier **usuario** (por ejemplo
-   `testuser`) y enviá. El mock te firma un token válido y te devuelve a la app
-   ya autenticado.
+4. On the mock's login screen, type any **user** (for example `testuser`) and
+   submit. The mock signs a valid token and sends you back to the app already
+   authenticated.
 
-   > ¿Querés claims custom (email, roles, etc.)? El mock permite pegar un JSON
-   > de claims en su formulario de login, por ejemplo:
+   > Want custom claims (email, roles, etc.)? The mock lets you paste a claims
+   > JSON in its login form, for example:
    > `{"email":"test@example.com","realm_access":{"roles":["admin"]}}`
 
-## Cómo apagar
+## Shutting down
 
 ```bash
 docker compose down
 ```
 
-## Notas
+## Notes
 
-- El ejemplo usa `SessionHandler(mode='memory')` (store en memoria,
-  thread-safe), así que **no necesitás Redis** ni ningún servicio extra. Las
-  sesiones se pierden al reiniciar la app (aceptable para un demo). En
-  producción usá `SessionHandler(mode='redis')` (requiere `pip install
-  easyoidc[redis]`).
-  > Nota: `SessionHandler(mode='shelve')` no es thread-safe bajo el servidor de
-  > desarrollo de Flask en Python 3.13+ (el backend `dbm.sqlite3` falla entre
-  > hilos), por eso el demo usa `memory`.
-- El mock acepta cualquier `client_id` / `client_secret`; los valores están en
+- The example uses `SessionHandler(mode='memory')` (in-memory, thread-safe
+  store), so **you don't need Redis** or any extra service. Sessions are lost
+  when the app restarts (fine for a demo). In production use
+  `SessionHandler(mode='redis')` (requires `pip install easyoidc[redis]`).
+  > Note: `SessionHandler(mode='shelve')` is not thread-safe under the Flask
+  > development server on Python 3.13+ (the `dbm.sqlite3` backend fails across
+  > threads), which is why the demo uses `memory`.
+- The mock accepts any `client_id` / `client_secret`; the values live in
   `.env.mock`.
-- Para probar contra **Keycloak, Auth0 o Google** en lugar del mock, solo cambiá
-  `well_known_openid_url` (y las credenciales) en `.env.mock`.
-- El mock permite inyectar claims (email, roles, etc.) desde el campo **claims**
-  de su formulario de login, por ejemplo:
+- To test against **Keycloak, Auth0 or Google** instead of the mock, just change
+  `well_known_openid_url` (and the credentials) in `.env.mock`.
+- The mock lets you inject claims (email, roles, etc.) from the **claims** field
+  of its login form, for example:
   `{"email":"test@example.com","realm_access":{"roles":["admin"]}}`.
