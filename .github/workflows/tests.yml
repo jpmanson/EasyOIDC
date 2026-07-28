@@ -1,0 +1,55 @@
+name: Tests
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.9', '3.11', '3.13']
+
+    services:
+      # Servidor OIDC de prueba, liviano y sin configuración.
+      oidc:
+        image: ghcr.io/navikt/mock-oauth2-server:2.1.10
+        ports:
+          - 8080:8080
+      # Redis para ejercitar SessionHandler(mode='redis').
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+
+    env:
+      MOCK_OIDC_URL: http://localhost:8080/default/.well-known/openid-configuration
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[flask,redis,dev]"
+
+      - name: Wait for mock OIDC server
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf "$MOCK_OIDC_URL" >/dev/null; then
+              echo "mock-oauth2-server listo"; exit 0
+            fi
+            sleep 2
+          done
+          echo "El mock OIDC no respondió a tiempo"; exit 1
+
+      - name: Run tests
+        run: pytest -v

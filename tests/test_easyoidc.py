@@ -34,13 +34,45 @@ def test_validate_config():
     client = OIDClient(valid_config)
 
 
-def test_session_storage():
-    session_store = SessionHandler(mode='redis')
-    session_store.get('test', 'default')
+def _exercise_store(session_store):
+    session_store.reset_keys()
+    assert session_store.get('test', 'default') == 'default'
     session_store.set('test', 'other')
     assert session_store.get('test', 'default') == 'other'
+    assert 'test' in session_store
+    del session_store['test']
+    assert 'test' not in session_store
 
-    session_store = SessionHandler(mode='shelve')
-    session_store.get('test', 'default')
-    session_store.set('test', 'other')
-    assert session_store.get('test', 'default') == 'other'
+
+def test_session_storage_memory():
+    _exercise_store(SessionHandler(mode='memory'))
+
+
+def test_session_storage_shelve(tmp_path):
+    _exercise_store(SessionHandler(mode='shelve', filename=str(tmp_path / 'sessions.db')))
+
+
+def test_session_storage_redis():
+    # Modo redis: requiere redis-py (extra opcional) y un Redis accesible.
+    pytest.importorskip('redis')
+    import redis
+    try:
+        redis.StrictRedis().ping()
+    except Exception:
+        pytest.skip('No hay un servidor Redis accesible')
+    _exercise_store(SessionHandler(mode='redis'))
+
+
+def test_session_storage_redis_missing_dep(monkeypatch):
+    # Sin redis-py instalado, el modo redis debe dar un error claro.
+    import builtins
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == 'redis':
+            raise ImportError(f"No module named '{name}'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, '__import__', fake_import)
+    with pytest.raises(ImportError, match='easyoidc\\[redis\\]'):
+        SessionHandler(mode='redis')

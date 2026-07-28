@@ -115,13 +115,17 @@ class Config(object):
             self.token_endpoint = data['token_endpoint']
             self.userinfo_endpoint = data['userinfo_endpoint']
             self.token_revoke_endpoint = data.get('revocation_endpoint')
+            # 'scopes_supported' is RECOMMENDED (not REQUIRED) by the OIDC
+            # Discovery spec, so some servers may omit it.
+            scopes_supported = data.get('scopes_supported')
             if not self.scope:
-                # If not defined, copy the scopes_supported from the server.
-                self.scope = data['scopes_supported']
-            else:
+                # If not defined, copy the scopes_supported from the server
+                # (fall back to 'openid' when the server doesn't advertise them).
+                self.scope = scopes_supported or ['openid']
+            elif scopes_supported:
                 # Validate self.scope with the scopes_supported by the server.
                 for scope in self.scope:
-                    if scope not in data['scopes_supported']:
+                    if scope not in scopes_supported:
                         raise Exception(f"Scope '{scope}' not supported by the server.")
         else:
             raise Exception(f'Error loading wellknown url: {wellknown_url}')

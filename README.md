@@ -148,12 +148,57 @@ EasyOIDC needs to store some data in the server session, like tokens and authent
 ```python
 from EasyOIDC import SessionHandler
 
-# Redis memory storage
-session_storage = SessionHandler(mode='redis')
+# In-memory storage (thread-safe, no external dependencies). Default mode.
+# Sessions are lost when the process restarts. Great for development/testing.
+session_storage = SessionHandler(mode='memory')
 
-# or for file storage
+# File storage
 session_storage = SessionHandler(mode='shelve')
 
+# Redis storage (requires the optional extra: pip install easyoidc[redis])
+session_storage = SessionHandler(mode='redis')
 ```
 
-**Note:** When using `nicegui` with its auto-reloading feature, it is recommended to use the `redis` mode for the `SessionHandler`. The `shelve` mode is not thread-safe and can cause issues when multiple processes access the same session file.
+**Redis is optional.** Redis support uses `redis-py` directly (no version cap)
+and is not installed by default. Install it with `pip install easyoidc[redis]`.
+It is kept out of the core dependencies so projects using the `memory` or
+`shelve` modes don't pull Redis in. Sessions are stored as fields of a single
+Redis hash (one key per `namespace`), serialized with `pickle`.
+
+**Note:** The `shelve` mode is not thread-safe (on Python 3.13+ its default
+`dbm.sqlite3` backend raises across threads), so avoid it with multi-threaded
+WSGI servers or auto-reloading frameworks like `nicegui`. Use `memory` for
+single-process apps or `redis` for multi-process/production deployments.
+
+## Testing against a real OIDC server
+
+The [`test-oidc/`](test-oidc/) directory contains a self-contained setup to test
+the full OIDC flow (login → token → userinfo → protected routes → logout)
+against a real but lightweight OpenID Connect server
+([`mock-oauth2-server`](https://github.com/navikt/mock-oauth2-server)), with no
+Keycloak configuration required:
+
+```bash
+cd test-oidc
+docker compose up            # starts the OIDC server on :8080
+python app.py                # starts the Flask example on :5000
+# open http://localhost:5000 and click "Login"
+```
+
+See [`test-oidc/README.md`](test-oidc/README.md) for details.
+
+### Automated tests
+
+```bash
+pip install -e ".[flask,dev]"
+pytest                       # unit tests (integration tests auto-skip if the mock is down)
+
+# to also run the integration tests, start the mock first:
+cd test-oidc && docker compose up -d
+pytest
+```
+
+The integration suite (`tests/test_integration_oidc.py`) exercises the full
+authorization-code flow against the mock and is skipped automatically when the
+server isn't reachable. CI runs the whole suite with the mock and Redis as
+service containers (see `.github/workflows/tests.yml`).

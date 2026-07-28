@@ -1,6 +1,6 @@
 [project]
 name = "EasyOIDC"
-version = "0.1.12"
+version = "0.2.0"
 description = "Easy integration with OIDC authentication servers"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -22,10 +22,13 @@ dependencies = [
     "authlib>=1.3.0",
     "requests>=2.31.0",
     "python-decouple>=3.8",
-    "redis-collections>=0.12.0",
 ]
 
 [project.optional-dependencies]
+# Almacenamiento de sesiones en Redis (opcional). Se usa redis-py directamente,
+# sin tope de versión. Se mantiene fuera de las dependencias core para no
+# imponer Redis a quienes usan los modos 'memory' o 'shelve'.
+redis = ["redis>=4.0.0"]
 flask = ["flask>=2.3.3"]
 nicegui = ["nicegui>=1.4.0", "fastapi"]
 taipy = ["taipy>=2.4.0"]
