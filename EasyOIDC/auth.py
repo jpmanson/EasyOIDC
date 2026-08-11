@@ -142,6 +142,32 @@ class OIDClient(object):
         # Retrieve the user roles using the roles getter function
         return self._roles_getter()
 
+    # Shared role-checking logic. Extracted so framework integrations that need
+    # extra context (e.g. FastAPI, where the roles depend on the incoming
+    # Request) can reuse the exact same semantics as require_roles().
+    @staticmethod
+    def evaluate_roles(user_roles: list, and_allow_roles: list = [], deny_roles: list = [],
+                       or_allow_roles: list = []) -> bool:
+        # Determine the roles to be checked based on the provided parameters
+        and_aroles = user_roles if and_allow_roles == ['*'] else and_allow_roles
+        or_aroles = user_roles if or_allow_roles == ['*'] else or_allow_roles
+        droles = user_roles if deny_roles == ['*'] else deny_roles
+
+        is_authorized = False
+        # Check if user has the required roles
+        if len(and_aroles) > 0:
+            is_authorized = all(x in user_roles for x in and_aroles)
+        elif len(or_aroles) > 0:
+            is_authorized = any(oar in user_roles for oar in or_aroles)
+
+        # Check for denied roles
+        for dr in droles:
+            if dr in user_roles:
+                is_authorized = False
+                break
+
+        return is_authorized
+
     # and_allow_roles: List of roles that must be fulfilled (all of them)
     # or_allow_roles: List of roles that can be fulfilled (any of them)
     # deny_roles: List of roles that are not allowed (any of them)
@@ -152,25 +178,8 @@ class OIDClient(object):
             @wraps(f)
             def decorated_function(*args, **kwargs):
                 try:
-                    user_roles = self.get_user_roles()
-                    # Determine the roles to be checked based on the provided parameters
-                    and_aroles = user_roles if and_allow_roles == ['*'] else and_allow_roles
-                    or_aroles = user_roles if or_allow_roles == ['*'] else or_allow_roles
-                    droles = user_roles if deny_roles == ['*'] else deny_roles
-
-                    is_authorized = False
-                    # Check if user has the required roles
-                    if len(and_aroles) > 0:
-                        is_authorized = all(x in user_roles for x in and_aroles)
-                    elif len(or_aroles) > 0:
-                        is_authorized = any(oar in user_roles for oar in or_aroles)
-
-                    # Check for denied roles
-                    for dr in droles:
-                        if dr in user_roles:
-                            is_authorized = False
-                            break
-
+                    is_authorized = self.evaluate_roles(self.get_user_roles(), and_allow_roles,
+                                                        deny_roles, or_allow_roles)
                 except Exception as e:
                     is_authorized = False
 

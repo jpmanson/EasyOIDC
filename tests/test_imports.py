@@ -43,6 +43,14 @@ def test_import_nicegui_framework():
     assert NiceGUIOIDClient is not None
 
 
+def test_import_fastapi_framework():
+    """Test that FastAPI framework module can be imported."""
+    pytest.importorskip("fastapi")
+    pytest.importorskip("itsdangerous")
+    from EasyOIDC.frameworks.fastapi import FastAPIOIDClient
+    assert FastAPIOIDClient is not None
+
+
 def test_config_instantiation():
     """Test that Config can be instantiated without file."""
     from EasyOIDC.config import Config

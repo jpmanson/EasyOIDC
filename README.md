@@ -2,9 +2,9 @@
 
 EasyOIDC is a Python library that provides a simple interface to the [OpenID Connect](https://en.wikipedia.org/wiki/OpenID#OpenID_Connect_(OIDC)) protocol. It is designed to be easy to use and to integrate into existing applications. It is built on top of the [Authlib library](https://github.com/authlib/authlib).
 
-EasyOIDC can basically adapt to any web framework that supports session variables, route definition, and redirection. As an example, integration examples with [Flask](https://github.com/pallets/flask), [NiceGUI](https://github.com/zauberzeug/nicegui/), [Streamlit](https://github.com/streamlit/streamlit) and [Taipy](https://github.com/Avaiga/taipy) are provided.
+EasyOIDC can basically adapt to any web framework that supports session variables, route definition, and redirection. As an example, integration examples with [Flask](https://github.com/pallets/flask), [FastAPI](https://github.com/fastapi/fastapi), [NiceGUI](https://github.com/zauberzeug/nicegui/), [Streamlit](https://github.com/streamlit/streamlit), [Taipy](https://github.com/Avaiga/taipy) and [Bottle](https://github.com/bottlepy/bottle) are provided.
 
-In addition, the library has high-level classes, to integrate even more easily with [Flask](https://github.com/pallets/flask), [NiceGUI](https://github.com/zauberzeug/nicegui/) and [Taipy](https://github.com/Avaiga/taipy). The idea of the project is to gradually incorporate high-level support for new web frameworks from the Python world.
+In addition, the library has high-level classes, to integrate even more easily with [Flask](https://github.com/pallets/flask), [FastAPI](https://github.com/fastapi/fastapi), [NiceGUI](https://github.com/zauberzeug/nicegui/) and [Taipy](https://github.com/Avaiga/taipy). The idea of the project is to gradually incorporate high-level support for new web frameworks from the Python world.
 
 EasyOIDC has been tested with OIDC backends such as [Keycloak](https://www.keycloak.org/), [Google](https://developers.google.com/identity/openid-connect/openid-connect?hl=es-419) and [Auth0](https://auth0.com/), and could connect to virtually any [OpenID Connect](https://en.wikipedia.org/wiki/OpenID#OpenID_Connect_(OIDC)) compatible server.
 
@@ -13,14 +13,15 @@ EasyOIDC has been tested with OIDC backends such as [Keycloak](https://www.keycl
 The library is available via PyPi (https://pypi.org/project/EasyOIDC/)
 
 ```bash
-pip install easyoidc
+uv add easyoidc
 ```
 
 If you are going to use it with a specific web framework, you can install it like this: 
 ```bash
-pip install easyoidc[flask]
-pip install easyoidc[nicegui]
-pip install easyoidc[taipy]
+uv add "easyoidc[flask]"
+uv add "easyoidc[fastapi]"
+uv add "easyoidc[nicegui]"
+uv add "easyoidc[taipy]"
 ```
 
 ## Usage
@@ -51,6 +52,74 @@ def root():
 if __name__ == "__main__":
     app.run()
 ```
+
+### FastAPI
+This is an example of how to integrate EasyOIDC with FastAPI:
+
+```python
+from fastapi import Depends, FastAPI, Request
+from EasyOIDC import Config, SessionHandler
+from EasyOIDC.frameworks.fastapi import FastAPIOIDClient
+
+app = FastAPI()
+session_storage = SessionHandler(mode='redis')
+auth_config = Config('.env')
+auth = FastAPIOIDClient(app, auth_config=auth_config, session_storage=session_storage)
+
+@app.get('/')
+def root(request: Request):
+    if auth.is_authenticated(request):
+        userinfo = auth.get_userinfo(request)
+        return f"User authenticated. {userinfo}"
+    return "Not authenticated. Go to /login"
+
+@app.get('/me')
+def me(user: dict = Depends(auth.require_user)):
+    return {'user': user}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host='localhost', port=5000)
+```
+
+FastAPI has no ambient (context-local) session object like `flask.session` or
+NiceGUI's `app.storage.user`, so the methods that inspect the current user take
+an explicit `Request`: `auth.is_authenticated(request)`,
+`auth.get_userinfo(request)` and `auth.get_user_roles(request)`. The same
+information is also available as dependencies:
+
+- `Depends(auth.current_user)` returns the userinfo dict, or `None` when anonymous.
+- `Depends(auth.require_user)` returns the userinfo dict, redirecting to the login route when anonymous.
+
+Role-based access control works as in the other integrations. The `Request` is
+injected automatically when the endpoint doesn't declare one:
+
+```python
+@app.get('/admin')
+@auth.require_roles('/access-forbidden', and_allow_roles=['intranet-home'])
+def admin():
+    return {'message': 'Welcome, admin'}
+```
+
+A few things worth knowing:
+
+- The client session is stored in a signed cookie via Starlette's
+  `SessionMiddleware`, which EasyOIDC installs for you using
+  `cookie_secret_key`. If your app installs it itself, pass
+  `add_session_middleware=False` and add it **after** building the client, so it
+  still wraps the authentication middleware.
+- FastAPI's `/docs`, `/redoc` and `/openapi.json` are ordinary routes, so the
+  middleware protects them too. List them in `unrestricted_routes` to keep them
+  public. The OIDC routes themselves (`/login`, `/authorize`, `/logout`) are
+  registered outside the OpenAPI schema.
+- By default every request re-validates the token against the OIDC server's
+  userinfo endpoint, matching the behaviour of the other integrations. That
+  costs one HTTP round-trip per request; pass
+  `validate_session_on_each_request=False` to trust the stored session instead.
+  The blocking calls always run in a threadpool, so the event loop is never
+  stalled.
+
+See `examples/fastapi_high_level.py` and `examples/fastapi_low_level.py`.
 
 ### NiceGUI
 This is an example of how you can integrate EasyOIDC with NiceGUI:
@@ -155,7 +224,7 @@ session_storage = SessionHandler(mode='memory')
 # File storage
 session_storage = SessionHandler(mode='shelve')
 
-# Redis storage (requires the optional extra: pip install easyoidc[redis])
+# Redis storage (requires the optional extra: uv add "easyoidc[redis]")
 session_storage = SessionHandler(mode='redis')
 ```
 
@@ -184,7 +253,7 @@ session_storage = SessionHandler(mode='redis')
 
 **Redis is optional** and kept out of the core dependencies, so projects using
 `memory` or `shelve` don't pull Redis in. Install it with
-`pip install easyoidc[redis]`.
+`uv add "easyoidc[redis]"`.
 
 **Rule of thumb:** use `memory` for development and single-process apps,
 `shelve` when you need on-disk persistence in a single process, and `redis` for
@@ -200,8 +269,9 @@ Keycloak configuration required:
 
 ```bash
 cd test-oidc
-docker compose up            # starts the OIDC server on :8080
-python app.py                # starts the Flask example on :5000
+docker compose up                     # starts the OIDC server on :8080
+uv run python app.py                  # starts the Flask example on :5000
+# or:  uv run python app_fastapi.py   # starts the FastAPI example on :5000
 # open http://localhost:5000 and click "Login"
 ```
 
@@ -210,12 +280,14 @@ See [`test-oidc/README.md`](test-oidc/README.md) for details.
 ### Automated tests
 
 ```bash
-pip install -e ".[flask,dev]"
-pytest                       # unit tests (integration tests auto-skip if the mock is down)
+# `uv sync` matches the environment exactly to the lockfile, so pass every extra
+# you want to keep installed (add --extra nicegui / --extra taipy if you use them).
+uv sync --extra flask --extra fastapi --extra redis
+uv run pytest                # unit tests (integration tests auto-skip if the mock is down)
 
 # to also run the integration tests, start the mock first:
 cd test-oidc && docker compose up -d
-pytest
+uv run pytest
 ```
 
 The integration suite (`tests/test_integration_oidc.py`) exercises the full

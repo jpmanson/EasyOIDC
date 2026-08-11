@@ -1,6 +1,6 @@
 [project]
 name = "EasyOIDC"
-version = "0.2.0"
+version = "0.3.0"
 description = "Easy integration with OIDC authentication servers"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -30,6 +30,9 @@ dependencies = [
 # modes are not forced to install Redis.
 redis = ["redis>=4.0.0"]
 flask = ["flask>=2.3.3"]
+# itsdangerous is required by Starlette's SessionMiddleware, which signs the
+# session cookie; uvicorn is the ASGI server used to run the examples.
+fastapi = ["fastapi>=0.100.0", "itsdangerous>=2.0.0", "uvicorn>=0.23.0"]
 nicegui = ["nicegui>=1.4.0", "fastapi"]
 taipy = ["taipy>=2.4.0"]
 dev = ["pytest", "ruff"]

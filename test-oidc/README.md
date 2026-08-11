@@ -11,11 +11,16 @@ and an **interactive login page** where you can type any user.
 ## Requirements
 
 - Docker (for the OIDC server)
-- Python with EasyOIDC + Flask installed:
+- Python with EasyOIDC + the framework you want to try:
 
   ```bash
-  pip install -e ..[flask]      # or: pip install easyoidc[flask]
+  # Installs both examples' dependencies in one go. `uv sync` matches the
+  # environment exactly to the lockfile, so list every extra in a single command.
+  uv sync --extra flask --extra fastapi
   ```
+
+  From outside this repository, install the published package instead:
+  `uv add "easyoidc[flask]"` / `uv add "easyoidc[fastapi]"`.
 
 ## Steps
 
@@ -33,8 +38,13 @@ and an **interactive login page** where you can type any user.
 
    ```bash
    cd test-oidc
-   python app.py
+   uv run python app.py             # Flask
+   # or:
+   uv run python app_fastapi.py     # FastAPI
    ```
+
+   Both listen on `:5000`, which is what the `redirect_uri` in `.env.mock`
+   points at, so run one at a time.
 
 3. Open <http://localhost:5000> and click **Login**.
 
@@ -57,7 +67,7 @@ docker compose down
 - The example uses `SessionHandler(mode='memory')` (in-memory, thread-safe
   store), so **you don't need Redis** or any extra service. Sessions are lost
   when the app restarts (fine for a demo). In production use
-  `SessionHandler(mode='redis')` (requires `pip install easyoidc[redis]`).
+  `SessionHandler(mode='redis')` (requires `uv add "easyoidc[redis]"`).
   > Note: `SessionHandler(mode='shelve')` is not thread-safe under the Flask
   > development server on Python 3.13+ (the `dbm.sqlite3` backend fails across
   > threads), which is why the demo uses `memory`.
