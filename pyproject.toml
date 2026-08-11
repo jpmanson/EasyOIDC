@@ -35,7 +35,8 @@ flask = ["flask>=2.3.3"]
 fastapi = ["fastapi>=0.100.0", "itsdangerous>=2.0.0", "uvicorn>=0.23.0"]
 nicegui = ["nicegui>=1.4.0", "fastapi"]
 taipy = ["taipy>=2.4.0"]
-dev = ["pytest", "ruff"]
+# httpx is required by Starlette's TestClient, used by the FastAPI tests.
+dev = ["pytest", "ruff", "httpx>=0.23.0"]
 
 [project.urls]
 Homepage = "https://github.com/jpmanson/EasyOIDC"
@@ -53,6 +54,7 @@ packages = ["EasyOIDC"]
 dev = [
     "pytest>=8.0.0",
     "ruff>=0.4.0",
+    "httpx>=0.23.0",
 ]
 
 [tool.pytest.ini_options]

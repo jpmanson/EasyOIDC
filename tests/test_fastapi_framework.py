@@ -9,6 +9,8 @@ import pytest
 
 pytest.importorskip('fastapi')
 pytest.importorskip('itsdangerous')
+# Starlette's TestClient is built on httpx
+pytest.importorskip('httpx')
 
 from fastapi import Depends, FastAPI, Request           # noqa: E402
 from fastapi.testclient import TestClient               # noqa: E402
