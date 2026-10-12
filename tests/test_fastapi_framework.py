@@ -118,9 +118,15 @@ def test_login_redirects_to_authorization_endpoint(app_ctx):
     assert location.startswith('https://oidc.example.com/auth')
     assert 'client_id=cid' in location
     assert 'state=' in location
-    # The state is registered in the server-side store, still unauthenticated
-    state = next(iter(storage.keys()))
-    assert storage[state] == {'userinfo': None, 'token': None}
+    # A pending login is registered server-side, still unauthenticated. The
+    # cookie holds a random session id, not the OAuth state.
+    sid = next(iter(storage.keys()))
+    entry = storage[sid]
+    assert entry['userinfo'] is None and entry['token'] is None
+    assert entry['login']['state'] in location
+    assert sid not in location
+    assert 'code_challenge_method=S256' in location
+    assert 'nonce=' in location
 
 
 def test_authorize_route_rejects_state_mismatch(app_ctx):

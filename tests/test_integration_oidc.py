@@ -102,3 +102,28 @@ def test_full_authorization_code_flow(oidc_client):
 
     # 6) The session must be valid against the server
     assert oidc_client.is_valid_oidc_session(oauth_session) is True
+
+
+def test_full_flow_with_pkce_nonce_and_id_token_validation(oidc_client):
+    """0.4.0 flow: PKCE S256 + nonce + signed ID token checked against JWKS."""
+    session = requests.Session()
+    login = oidc_client.begin_login()
+    assert 'code_challenge_method=S256' in login['url']
+    assert f"nonce={login['nonce']}" in login['url']
+
+    claims = '{"email":"test@example.com","email_verified":true}'
+    redirect_url = _complete_mock_login(session, login['url'], 'testuser', claims)
+
+    result = oidc_client.complete_login(redirect_url, login)
+    assert result['id_claims']['sub'] == 'testuser'
+    assert result['id_claims']['nonce'] == login['nonce']
+    assert result['userinfo']['email'] == 'test@example.com'
+
+
+def test_tampered_nonce_is_rejected(oidc_client):
+    from EasyOIDC import IDTokenValidationError
+    session = requests.Session()
+    login = oidc_client.begin_login()
+    redirect_url = _complete_mock_login(session, login['url'], 'testuser', '{}')
+    with pytest.raises(IDTokenValidationError):
+        oidc_client.complete_login(redirect_url, dict(login, nonce='not-the-one-sent'))

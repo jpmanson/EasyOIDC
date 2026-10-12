@@ -121,6 +121,65 @@ A few things worth knowing:
 
 See `examples/fastapi_high_level.py` and `examples/fastapi_low_level.py`.
 
+### Access policy, Keycloak client roles and security defaults (0.4.0)
+
+The high-level clients (FastAPI, Flask, NiceGUI, Taipy) accept an access
+policy, so you don't have to re-implement "authenticated is not enough" in
+every app:
+
+```python
+auth = FastAPIOIDClient(
+    app,
+    auth_config=Config('.env', roles_source='client'),  # resource_access.<client_id>.roles
+    session_storage=SessionHandler(mode='redis'),
+    required_roles=['my-app-user', 'my-app-admin'],     # at least one of them
+    require_email_verified=True,
+    validate_session_on_each_request=False,             # trust the store, refresh on expiry
+)
+```
+
+A user that authenticates but fails the policy gets a 403 page with an IdP
+logout link (override it with `access_denied_handler`). Errors returned by the
+IdP (`?error=...`) or an invalid ID token render an error page instead of
+bouncing back to `/login` (override with `auth_error_handler`).
+
+**Where roles come from** is configurable on `Config`:
+
+| Setting | Values | Default |
+|---|---|---|
+| `roles_source` | `realm` (`realm_access.roles`), `client` (`resource_access.<roles_client_id or client_id>.roles`), `realm+client` | `realm` |
+| `roles_claims_from` | any of `userinfo`, `id_token`, `access_token` | `userinfo` |
+| `roles_client_id` | client whose roles are read | `client_id` |
+
+Keycloak clients with *Full scope allowed* off do not put `realm_access` in
+their tokens; use `roles_source='client'`. If the client roles mapper only
+adds them to the access token, add `access_token` to `roles_claims_from`.
+A custom `roles_getter=(userinfo) -> list` still wins over all of this.
+
+**Security defaults**
+
+| Setting | Default | What it does |
+|---|---|---|
+| `use_pkce` | `True` | PKCE S256 on the authorization code flow |
+| `use_nonce` | `True` | sends a `nonce` and checks it in the ID token |
+| `validate_id_token` | `True` | verifies the ID token signature (JWKS from discovery), `iss`, `aud`, `exp`, `nonce` |
+| `http_timeout` | `10` | timeout (s) for every call to the OIDC server |
+| `login_timeout_seconds` | `600` | a started login must finish within this time |
+
+Other behaviour of the high-level clients:
+
+- The browser cookie carries a random session id, not the OAuth `state`, and
+  the id is rotated after login.
+- Expired access tokens are refreshed with the refresh token and the new token
+  is persisted; userinfo is re-read and the policy re-checked, so a role
+  removed in the IdP takes effect at the next refresh. A failed refresh drops
+  the session.
+- `?next=/path` is accepted on the login route; only local paths are honoured.
+- Logout sends `client_id`, `post_logout_redirect_uri` and (when available)
+  `id_token_hint`, as required by Keycloak 18+.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the upgrade notes.
+
 ### NiceGUI
 This is an example of how you can integrate EasyOIDC with NiceGUI:
 

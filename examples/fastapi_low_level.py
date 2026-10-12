@@ -5,15 +5,21 @@ so the routes and the session handling are yours to write. Use this when you
 want full control; for the batteries-included version see
 `fastapi_high_level.py`.
 
+Since 0.4.0 the recommended low-level calls are `begin_login()` /
+`complete_login()`: they add PKCE (S256), a nonce and ID token validation.
+The per-login secrets they return must be kept server-side until the
+callback arrives.
+
 Note that `OIDClient`'s network calls are blocking, so the handlers below are
 declared as plain `def`: Starlette then runs them in a threadpool and the event
-loop is never stalled. If you make them `async def`, wrap those calls with
-`starlette.concurrency.run_in_threadpool`.
+loop is never stalled.
 
 Run with:
     uv add "easyoidc[fastapi]"
     uv run uvicorn fastapi_low_level:app --port 5000
 """
+import secrets
+
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
@@ -23,22 +29,20 @@ from EasyOIDC import Config, OIDClient, SessionHandler
 LOGIN_PATH = '/login'
 LOGOUT_PATH = '/logout'
 AUTHORIZE_PATH = '/authorize'
-SESSION_STATE = 'session-state'
+SESSION_ID = 'session-id'
 
 auth_config = Config('.env')
 auth = OIDClient(auth_config)
 session_store = SessionHandler(mode='memory')
 
 app = FastAPI()
-# Signed cookie holding the session state. Required to correlate the OIDC
-# callback with the browser that started the login.
 app.add_middleware(SessionMiddleware, secret_key=auth_config.cookie_secret_key)
 
 
 def _current_userinfo(request: Request):
-    state = request.session.get(SESSION_STATE)
-    if state and (state in session_store):
-        return (session_store[state] or {}).get('userinfo')
+    sid = request.session.get(SESSION_ID)
+    if sid and (sid in session_store):
+        return (session_store[sid] or {}).get('userinfo')
     return None
 
 
@@ -52,44 +56,49 @@ def root(request: Request):
 
 @app.get(LOGIN_PATH)
 def login(request: Request):
-    uri, state = auth.auth_server_login()
-    request.session[SESSION_STATE] = state
-    session_store[state] = {'userinfo': None, 'token': None}
-    return RedirectResponse(uri)
+    login = auth.begin_login()
+    sid = secrets.token_urlsafe(32)
+    request.session[SESSION_ID] = sid
+    session_store[sid] = {'login': login, 'userinfo': None, 'token': None}
+    return RedirectResponse(login['url'])
 
 
 @app.get(AUTHORIZE_PATH)
 def authorize(request: Request):
+    sid = request.session.get(SESSION_ID)
+    pending = (session_store[sid] or {}).get('login') if sid and sid in session_store else None
+    if not pending or request.query_params.get('state') != pending['state']:
+        return RedirectResponse(LOGIN_PATH)
+    if request.query_params.get('error'):
+        return HTMLResponse(f"Login failed: {request.query_params['error']}", status_code=400)
     try:
-        state = request.query_params['state']
-        # Reject a callback that doesn't match the state we handed out
-        assert state == request.session.get(SESSION_STATE)
-
-        token, oauth_session = auth.get_token(str(request.url))
-        userinfo = auth.get_user_info(oauth_session)
-        session_store[state] = {'userinfo': userinfo, 'token': dict(token)}
+        result = auth.complete_login(str(request.url), pending)
     except Exception:
+        del session_store[sid]
         return RedirectResponse(LOGIN_PATH)
 
+    del session_store[sid]
+    new_sid = secrets.token_urlsafe(32)
+    session_store[new_sid] = {'userinfo': result['userinfo'], 'token': result['token']}
+    request.session[SESSION_ID] = new_sid
     return RedirectResponse('/')
 
 
 @app.get(LOGOUT_PATH)
 def logout(request: Request):
     logout_url = None
-    state = request.session.get(SESSION_STATE)
-    if state and (state in session_store):
-        token = (session_store[state] or {}).get('token') or {}
+    sid = request.session.get(SESSION_ID)
+    if sid and (sid in session_store):
+        token = (session_store[sid] or {}).get('token') or {}
         if auth_config.logout_endpoint:
             logout_url = auth.get_logout_url(token.get('id_token'))
-        del session_store[state]
-    request.session.pop(SESSION_STATE, None)
+        del session_store[sid]
+    request.session.pop(SESSION_ID, None)
     return RedirectResponse(logout_url or '/')
 
 
 @app.get('/protected')
 def protected(request: Request):
-    # No middleware here: guard the route yourself.
     userinfo = _current_userinfo(request)
     if not userinfo:
         return RedirectResponse(LOGIN_PATH)
@@ -98,5 +107,4 @@ def protected(request: Request):
 
 if __name__ == '__main__':
     import uvicorn
-    # host/port must match the redirect_uri configured in .env
     uvicorn.run(app, host='localhost', port=5000)

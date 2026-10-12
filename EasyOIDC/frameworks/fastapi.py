@@ -24,24 +24,45 @@ Basic usage:
     auth = FastAPIOIDClient(app, auth_config=Config('.env'),
                             session_storage=SessionHandler(mode='memory'))
 """
+import html
 import inspect
 import logging
 from functools import wraps
 
 from fastapi import Request
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from EasyOIDC import OIDClient, Config, SessionHandler
+from EasyOIDC.auth import AccessDeniedError, IDTokenValidationError
+from EasyOIDC.flow import AccessPolicy, end_session, finish_login, load_session, logout_url_for, start_login
 from EasyOIDC.frameworks import SESSION_STATE_VAR_NAME, REFERRER_VAR_NAME
-from EasyOIDC.utils import is_path_matched
+from EasyOIDC.utils import is_path_matched, safe_redirect_path
 
 
 def default_roles_getter(userinfo: dict) -> list:
-    """Extract roles from a Keycloak-style userinfo payload."""
+    """Extract roles from a Keycloak-style userinfo payload (0.3.x default)."""
     return (userinfo or {}).get('realm_access', {}).get('roles', [])
+
+
+def default_access_denied_handler(request: Request, error: AccessDeniedError, logout_url: str = None):
+    logout = (f"<p><a href='{html.escape(logout_url, quote=True)}'>Sign out</a></p>"
+              if logout_url else '')
+    return HTMLResponse(
+        f"<h1>Access denied</h1><p>{html.escape(str(error))}</p>{logout}",
+        status_code=403,
+    )
+
+
+def default_auth_error_handler(request: Request, error: Exception, login_route: str):
+    return HTMLResponse(
+        "<h1>Authentication error</h1>"
+        "<p>The sign-in could not be completed.</p>"
+        f"<p><a href='{html.escape(login_route, quote=True)}'>Try again</a></p>",
+        status_code=400,
+    )
 
 
 class FastAPIOIDClient(OIDClient):
@@ -64,11 +85,18 @@ class FastAPIOIDClient(OIDClient):
             Replaces the ones coming from the config.
         :key logger: custom ``logging.Logger``.
         :key roles_getter: callable receiving the ``userinfo`` dict and returning
-            the list of roles. Defaults to Keycloak's ``realm_access.roles``.
+            the list of roles. When omitted, roles are resolved from the config
+            (``roles_source`` / ``roles_claims_from``), which defaults to
+            Keycloak's ``realm_access.roles`` in userinfo.
+        :key required_roles: list of roles; a user needs at least one of them
+            to get a session. Others get ``access_denied_handler``'s response.
+        :key require_email_verified: reject users whose ``email_verified``
+            claim is not ``True`` (default ``False``).
+        :key access_denied_handler: ``(request, error, logout_url) -> Response``.
+        :key auth_error_handler: ``(request, error, login_route) -> Response``,
+            used when the IdP returns an error or the ID token is invalid.
         :key add_session_middleware: whether to install Starlette's
-            ``SessionMiddleware`` (default ``True``). Set to ``False`` if your app
-            installs it itself -- in that case add it *after* building this client,
-            so it still wraps the authentication middleware.
+            ``SessionMiddleware`` (default ``True``).
         :key session_cookie: name of the signed session cookie
             (default ``'easyoidc_session'``).
         :key same_site: SameSite policy for the session cookie (default ``'lax'``).
@@ -76,9 +104,8 @@ class FastAPIOIDClient(OIDClient):
         :key max_age: session cookie lifetime in seconds (default 14 days).
         :key validate_session_on_each_request: re-validate the token against the
             OIDC server's userinfo endpoint on every request (default ``True``).
-            This matches the behaviour of the other integrations, but costs one
-            HTTP round-trip per request; set to ``False`` to trust the stored
-            session instead.
+            With ``False`` the stored session is trusted until the access token
+            expires; it is then refreshed (or the session dropped).
         """
         if auth_config is None:
             auth_config = Config('.env')
@@ -89,7 +116,18 @@ class FastAPIOIDClient(OIDClient):
         self._app = app
         self._auth_config = auth_config
         self._session_storage = session_storage
-        self._roles_from_userinfo = kwargs.get('roles_getter', default_roles_getter)
+        self._validate_each = kwargs.get('validate_session_on_each_request', True)
+
+        user_roles_getter = kwargs.get('roles_getter')
+        if user_roles_getter is not None:
+            self._session_roles = lambda data: user_roles_getter((data or {}).get('userinfo'))
+        else:
+            self._session_roles = self.roles_from_session
+
+        self._policy = AccessPolicy(required_roles=list(kwargs.get('required_roles') or []),
+                                    require_email_verified=bool(kwargs.get('require_email_verified', False)))
+        self._access_denied_handler = kwargs.get('access_denied_handler', default_access_denied_handler)
+        self._auth_error_handler = kwargs.get('auth_error_handler', default_auth_error_handler)
 
         if 'unrestricted_routes' in kwargs:
             self._auth_config.unrestricted_routes = kwargs['unrestricted_routes']
@@ -99,17 +137,13 @@ class FastAPIOIDClient(OIDClient):
 
         self.set_redirector(lambda url: RedirectResponse(url))
 
-        # The authentication middleware is added FIRST so that SessionMiddleware
-        # ends up wrapping it: Starlette applies the last added middleware as the
-        # outermost one, and `request.session` must already exist by the time the
-        # authentication middleware runs.
         app.add_middleware(
             AuthMiddleware,
             oidc_client=self,
             session_storage=session_storage,
             log_enabled=log_enabled,
             logger=self.logger,
-            validate_session=kwargs.get('validate_session_on_each_request', True),
+            validate_session=self._validate_each,
         )
 
         if kwargs.get('add_session_middleware', True):
@@ -128,15 +162,11 @@ class FastAPIOIDClient(OIDClient):
                 max_age=kwargs.get('max_age', 14 * 24 * 60 * 60),
             )
 
-        # Turn the redirect raised by the `require_user` dependency into a real
-        # redirect response.
         app.add_exception_handler(
             _RedirectException,
             lambda request, exc: RedirectResponse(exc.url),
         )
 
-        # Register the OIDC routes. They are added with `router.add_route` (rather
-        # than `add_api_route`) so they stay out of the OpenAPI schema.
         app.router.add_route(auth_config.app_login_route, self._login_route_handler,
                              methods=['GET'], name='easyoidc_login')
         app.router.add_route(auth_config.app_authorize_route, self._authorize_route_handler,
@@ -147,34 +177,51 @@ class FastAPIOIDClient(OIDClient):
     def set_logger(self, logger):
         self.logger = logger
 
+    @property
+    def access_policy(self) -> AccessPolicy:
+        return self._policy
+
     # ------------------------------------------------------------------
     # Route handlers
     # ------------------------------------------------------------------
     async def _login_route_handler(self, request: Request) -> Response:
-        uri, state = await run_in_threadpool(self.auth_server_login)
-        request.session[SESSION_STATE_VAR_NAME] = state
-        self._session_storage[state] = {'userinfo': None, 'token': None}
+        next_url = request.query_params.get('next')
+        if next_url:
+            request.session[REFERRER_VAR_NAME] = safe_redirect_path(next_url)
+        sid, uri = await run_in_threadpool(start_login, self, self._session_storage,
+                                           request.session.get(SESSION_STATE_VAR_NAME))
+        request.session[SESSION_STATE_VAR_NAME] = sid
         return RedirectResponse(uri)
 
     async def _authorize_route_handler(self, request: Request) -> Response:
+        sid = request.session.get(SESSION_STATE_VAR_NAME)
+        query = dict(request.query_params)
         try:
-            state = request.query_params['state']
-            if state != request.session.get(SESSION_STATE_VAR_NAME):
-                raise ValueError('State mismatch between the callback and the session')
-
-            token, oauth_session = await run_in_threadpool(self.get_token, str(request.url))
-            userinfo = await run_in_threadpool(self.get_user_info, oauth_session)
-            self._session_storage[state] = {'userinfo': userinfo, 'token': dict(token)}
-
+            new_sid, _ = await run_in_threadpool(
+                finish_login, self, self._session_storage, sid, str(request.url), query,
+                self._session_roles, self._policy)
+        except AccessDeniedError as e:
+            request.session.pop(SESSION_STATE_VAR_NAME, None)
+            request.session.pop(REFERRER_VAR_NAME, None)
             if self._log_enabled:
-                self.logger.debug('Authentication successful.')
+                self.logger.info(f'Access denied after login: {e.reason}')
+            return self._access_denied_handler(request, e, logout_url_for(self, getattr(e, 'session', None)))
+        except (IDTokenValidationError,) as e:
+            request.session.pop(SESSION_STATE_VAR_NAME, None)
+            if self._log_enabled:
+                self.logger.warning(f'Invalid ID token: {e}')
+            return self._auth_error_handler(request, e, self._auth_config.app_login_route)
         except Exception as e:
+            request.session.pop(SESSION_STATE_VAR_NAME, None)
             if self._log_enabled:
-                self.logger.debug(f"Authentication error: '{e}'. Redirecting to login page...")
+                self.logger.debug(f"Authentication error: '{e}'.")
+            if query.get('error'):
+                return self._auth_error_handler(request, e, self._auth_config.app_login_route)
             return RedirectResponse(self._auth_config.app_login_route)
 
-        referrer_path = request.session.pop(REFERRER_VAR_NAME, '')
-        return RedirectResponse(referrer_path or '/')
+        request.session[SESSION_STATE_VAR_NAME] = new_sid
+        referrer_path = safe_redirect_path(request.session.pop(REFERRER_VAR_NAME, ''))
+        return RedirectResponse(referrer_path)
 
     async def _logout_route_handler(self, request: Request) -> Response:
         logout_url = self._logout(request)
@@ -183,13 +230,7 @@ class FastAPIOIDClient(OIDClient):
         return RedirectResponse(self._auth_config.post_logout_uri or '/')
 
     def _logout(self, request: Request):
-        logout_url = None
-        state = request.session.get(SESSION_STATE_VAR_NAME)
-        token = self.get_current_token(request)
-        if token:
-            if self._auth_config.logout_endpoint:
-                logout_url = self.get_logout_url(token.get('id_token', None))
-            del self._session_storage[state]
+        logout_url = end_session(self, self._session_storage, request.session.get(SESSION_STATE_VAR_NAME))
         request.session.pop(SESSION_STATE_VAR_NAME, None)
         request.session.pop(REFERRER_VAR_NAME, None)
         return logout_url
@@ -198,10 +239,13 @@ class FastAPIOIDClient(OIDClient):
     # Public API (request-scoped)
     # ------------------------------------------------------------------
     def _get_session_data(self, request: Request) -> dict:
-        state = request.session.get(SESSION_STATE_VAR_NAME)
-        if state and (state in self._session_storage):
-            return self._session_storage[state] or {}
-        return {}
+        cached = request.scope.get('easyoidc.session')
+        if cached is not None:
+            return cached
+        data = load_session(self, self._session_storage, request.session.get(SESSION_STATE_VAR_NAME),
+                            self._session_roles, validate_with_server=False, policy=self._policy) or {}
+        request.scope['easyoidc.session'] = data
+        return data
 
     def get_current_token(self, request: Request):
         """Return the OIDC token stored for the current session, or None."""
@@ -215,30 +259,27 @@ class FastAPIOIDClient(OIDClient):
         """Return the userinfo payload for the current session, or None."""
         return self._get_session_data(request).get('userinfo') or None
 
+    def get_id_claims(self, request: Request) -> dict:
+        """Return the validated ID token claims of the current session."""
+        return self._get_session_data(request).get('id_claims') or {}
+
     def get_user_roles(self, request: Request) -> list:
         """Return the roles of the current user (empty list when anonymous)."""
-        return self._roles_from_userinfo(self.get_userinfo(request)) or []
+        data = self._get_session_data(request)
+        if not data:
+            return []
+        return list(data.get('roles') or self._session_roles(data) or [])
 
     # ------------------------------------------------------------------
     # FastAPI dependencies
     # ------------------------------------------------------------------
     def current_user(self, request: Request):
-        """Dependency returning the userinfo dict, or None when not authenticated.
-
-            @app.get('/me')
-            def me(user: dict = Depends(auth.current_user)):
-                ...
-        """
+        """Dependency returning the userinfo dict, or None when not authenticated."""
         return self.get_userinfo(request)
 
     def require_user(self, request: Request):
         """Dependency returning the userinfo dict, redirecting to the login route
-        when the request is not authenticated.
-
-            @app.get('/private')
-            def private(user: dict = Depends(auth.require_user)):
-                ...
-        """
+        when the request is not authenticated."""
         userinfo = self.get_userinfo(request)
         if not userinfo:
             raise _RedirectException(self._auth_config.app_login_route)
@@ -274,8 +315,6 @@ class FastAPIOIDClient(OIDClient):
                 new_signature = signature.replace(parameters=params + var_kw)
 
             def authorize(kwargs):
-                """Whether the current user passes the role check. Removes the
-                injected Request so it is not forwarded to the endpoint."""
                 request = kwargs.pop(request_param, None) if injected else kwargs.get(request_param)
                 try:
                     is_authorized = self.evaluate_roles(self.get_user_roles(request),
@@ -305,8 +344,7 @@ class FastAPIOIDClient(OIDClient):
 
 
 class _RedirectException(Exception):
-    """Internal exception raised by the require_user dependency. It is turned
-    into a redirect response by an exception handler registered on the app."""
+    """Internal exception raised by the require_user dependency."""
 
     def __init__(self, url: str):
         self.url = url
@@ -337,35 +375,32 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 "AFTER building the FastAPIOIDClient so it becomes the outer layer."
             )
 
-        config = self.oidc_client.get_config()
+        client = self.oidc_client
+        config = client.get_config()
         login_route = config.app_login_route
+        oidc_routes = (config.app_login_route, config.app_authorize_route, config.app_logout_route)
+        if request.url.path in oidc_routes:
+            return await call_next(request)
+
         page_unrestricted = any(is_path_matched(request.url.path, pattern)
                                 for pattern in config.get_unrestricted_routes())
 
-        session_state = request.session.get(SESSION_STATE_VAR_NAME)
-        authenticated = False
-        if session_state and (session_state in self.session_storage):
-            stored = self.session_storage[session_state] or {}
-            token = stored.get('token')
-            if self.validate_session:
-                # `is_valid_oidc_session` performs a blocking HTTP request, so it
-                # runs in a threadpool to avoid stalling the event loop.
-                authenticated = await run_in_threadpool(
-                    self.oidc_client.is_valid_oidc_session,
-                    self.oidc_client.get_oauth_session(token),
-                )
-            else:
-                authenticated = bool(stored.get('userinfo'))
+        sid = request.session.get(SESSION_STATE_VAR_NAME)
+        data = None
+        if sid:
+            data = await run_in_threadpool(
+                load_session, client, self.session_storage, sid, client._session_roles,
+                self.validate_session, client._policy)
+        request.scope['easyoidc.session'] = data or {}
+        authenticated = bool(data and data.get('userinfo'))
 
         if not authenticated and not page_unrestricted:
-            # Only discard the stored session when the request is actually being
-            # bounced to the login route. Unrestricted routes are left untouched:
-            # the /login -> /authorize callback keeps a not-yet-authenticated
-            # session entry that the authorize handler still needs.
-            if session_state and (session_state in self.session_storage):
-                del self.session_storage[session_state]
+            if sid and not (data or {}).get('userinfo'):
+                stored = self.session_storage[sid] if sid in self.session_storage else None
+                if not (stored or {}).get('login'):
+                    request.session.pop(SESSION_STATE_VAR_NAME, None)
             referrer = request.url.path + (f'?{request.url.query}' if request.url.query else '')
-            request.session[REFERRER_VAR_NAME] = referrer or '/'
+            request.session[REFERRER_VAR_NAME] = safe_redirect_path(referrer)
             if self.log_enabled:
                 self.logger.debug(f"After login will redirect to '{referrer}'")
             return RedirectResponse(login_route)

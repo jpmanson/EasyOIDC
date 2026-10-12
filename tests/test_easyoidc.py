@@ -14,7 +14,7 @@ def test_validate_config():
     valid_config.cookie_secret_key = 'secret-key'
     valid_config.scope = ['openid']
 
-    client = OIDClient(valid_config)
+    OIDClient(valid_config)
     # No exception should be raised
     valid_config.is_valid_config()
 
@@ -24,14 +24,14 @@ def test_validate_config():
     # ... other configurations except client_id
 
     with pytest.raises(Exception):
-        client = OIDClient(invalid_config)
+        OIDClient(invalid_config)
 
     valid_config = Config(well_known_openid_url='https://accounts.google.com/.well-known/openid-configuration',
                           redirect_uri='https://example.com/redirect',
                           client_id='client-id',
                           client_secret='client-secret',
                           cookie_secret_key='secret-key')
-    client = OIDClient(valid_config)
+    OIDClient(valid_config)
 
 
 def _exercise_store(session_store):
