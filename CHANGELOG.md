@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.1
+
+### Fixed
+
+- `Config.load_from_wellknown()` now takes `logout_endpoint` from the
+  discovery document's `end_session_endpoint` when it is not set explicitly.
+  Before, configs that only set `well_known_openid_url` got a local-only
+  logout: the IdP session stayed open and the next login was silent. Not
+  applied when `auth_service='auth0'`.
+
+  **Behaviour change:** these apps now redirect to the IdP on logout, so
+  `post_logout_uri` must be registered as a valid post-logout redirect URI
+  in the provider (Keycloak rejects unregistered ones).
+
 ## 0.4.0
 
 Security release. Fixes gaps that every Keycloak-backed app had to patch by

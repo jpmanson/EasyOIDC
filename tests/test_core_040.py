@@ -1,4 +1,5 @@
 """Core (framework-agnostic) behaviour added in 0.4.0."""
+import json
 import time
 from urllib.parse import parse_qs, urlparse
 
@@ -164,3 +165,45 @@ def test_invalid_roles_source():
 
 def test_issuer_constant():
     assert ISSUER.startswith('https://')
+
+
+DISCOVERY = {
+    'issuer': ISSUER,
+    'authorization_endpoint': 'https://idp.example.com/auth',
+    'token_endpoint': 'https://idp.example.com/token',
+    'userinfo_endpoint': 'https://idp.example.com/userinfo',
+    'jwks_uri': 'https://idp.example.com/certs',
+    'end_session_endpoint': 'https://idp.example.com/logout',
+}
+
+
+@pytest.fixture
+def discovery(monkeypatch):
+    import requests
+
+    class Response:
+        status_code = 200
+        text = json.dumps(DISCOVERY)
+
+    monkeypatch.setattr(requests, 'get', lambda url, *a, **kw: Response())
+
+
+def _discovered_config(**overrides):
+    kwargs = dict(well_known_openid_url='https://idp.example.com/.well-known/openid-configuration',
+                  redirect_uri='http://localhost:5000/authorize', client_id=CLIENT_ID,
+                  client_secret='s', cookie_secret_key='k')
+    kwargs.update(overrides)
+    return OIDClient(Config(**kwargs)).get_config()
+
+
+def test_wellknown_sets_logout_endpoint(discovery):
+    assert _discovered_config().logout_endpoint == 'https://idp.example.com/logout'
+
+
+def test_wellknown_keeps_explicit_logout_endpoint(discovery):
+    cfg = _discovered_config(logout_endpoint='https://other.example.com/logout')
+    assert cfg.logout_endpoint == 'https://other.example.com/logout'
+
+
+def test_wellknown_logout_endpoint_ignored_for_auth0(discovery):
+    assert _discovered_config(auth_service='auth0').logout_endpoint is None
