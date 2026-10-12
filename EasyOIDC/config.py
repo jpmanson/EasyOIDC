@@ -11,6 +11,26 @@ def is_valid_url(url):
     return False
 
 
+def _to_bool(value, default=False):
+    if value is None or value == '':
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def _to_list(value, default=None):
+    if value is None or value == '':
+        return list(default or [])
+    if isinstance(value, (list, tuple, set)):
+        return [str(v).strip() for v in value if str(v).strip()]
+    return [v.strip() for v in str(value).split(',') if v.strip()]
+
+
+DEFAULT_ID_TOKEN_ALGORITHMS = ['RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512',
+                               'ES256', 'ES384', 'ES512', 'EdDSA']
+
+
 class Config(object):
     well_known_openid_url = None
     authorization_endpoint = None
@@ -30,29 +50,82 @@ class Config(object):
     auth_service = None
     base_unrestricted_routes = ['/favicon.ico']
 
+    # --- Added in 0.4.0 -----------------------------------------------------
+    # Discovery metadata used to validate ID tokens.
+    issuer = None
+    jwks_uri = None
+    # PKCE (RFC 7636, S256) on the authorization code flow.
+    use_pkce = True
+    # OIDC `nonce`, checked against the ID token.
+    use_nonce = True
+    # Validate the ID token (signature when a JWKS is available, iss, aud,
+    # exp, nonce). See README "ID token validation".
+    validate_id_token = True
+    id_token_algorithms = None
+    id_token_leeway = 60
+    # Timeout (seconds) for every HTTP call to the OIDC server.
+    http_timeout = 10
+    # Where roles are read from: 'realm' (realm_access.roles, default and
+    # 0.3.x behaviour), 'client' (resource_access.<roles_client_id>.roles) or
+    # 'realm+client'.
+    roles_source = 'realm'
+    roles_client_id = None
+    # Which claim sets are searched for roles: any of 'userinfo', 'id_token',
+    # 'access_token'. Default keeps the 0.3.x behaviour (userinfo only).
+    roles_claims_from = None
+    # A login started at /login must be completed within this many seconds.
+    login_timeout_seconds = 600
+
     def __init__(self, config_path=None, **kwargs):
-        # Defaults
         self.scope = ['openid', 'email', 'profile']
         self.app_login_route = '/login'
         self.app_logout_route = '/logout'
         self.app_authorize_route = '/authorize'
         self.base_unrestricted_routes = kwargs.get('base_unrestricted_routes', self.base_unrestricted_routes)
         self.unrestricted_routes = self.base_unrestricted_routes
+        self.id_token_algorithms = list(DEFAULT_ID_TOKEN_ALGORITHMS)
+        self.roles_claims_from = ['userinfo']
 
         if config_path and (os.path.exists(config_path)):
             try:
                 self.load_from_json(config_path)
-            except:
+            except Exception:
                 self.load_from_env_file(config_path)
         for key, value in kwargs.items():
             if hasattr(self, key):
                 setattr(self, key, value)
 
+        self._normalize()
+
         if not self.auth_service:
-            self.auth_service = 'keycloak'     # Default service provider
+            self.auth_service = 'keycloak'
             authorization_endpoint = self.authorization_endpoint or ''
             if authorization_endpoint.find('https://accounts.google.com') == 0:
                 self.auth_service = 'google'
+
+    def _normalize(self):
+        if isinstance(self.unrestricted_routes, str):
+            self.unrestricted_routes = _to_list(self.unrestricted_routes)
+        if isinstance(self.scope, str):
+            self.scope = _to_list(self.scope)
+        self.use_pkce = _to_bool(self.use_pkce, True)
+        self.use_nonce = _to_bool(self.use_nonce, True)
+        self.validate_id_token = _to_bool(self.validate_id_token, True)
+        self.id_token_algorithms = _to_list(self.id_token_algorithms, DEFAULT_ID_TOKEN_ALGORITHMS)
+        self.roles_claims_from = _to_list(self.roles_claims_from, ['userinfo'])
+        self.http_timeout = float(self.http_timeout) if self.http_timeout else None
+        self.id_token_leeway = int(self.id_token_leeway or 0)
+        self.login_timeout_seconds = int(self.login_timeout_seconds or 600)
+        if self.roles_source not in ('realm', 'client', 'realm+client'):
+            raise ValueError("roles_source must be 'realm', 'client' or 'realm+client'")
+
+    def _load_optional(self, getter):
+        for key in ('use_pkce', 'use_nonce', 'validate_id_token', 'id_token_algorithms',
+                    'id_token_leeway', 'http_timeout', 'roles_source', 'roles_client_id',
+                    'roles_claims_from', 'login_timeout_seconds', 'issuer', 'jwks_uri'):
+            value = getter(key)
+            if value not in (None, ''):
+                setattr(self, key, value)
 
     def load_from_json(self, json_path):
         with open(json_path, 'r') as f:
@@ -70,6 +143,7 @@ class Config(object):
             self.logout_endpoint = data.get('logout_endpoint', None)
             self.post_logout_uri = data.get('post_logout_uri', None)
             self.unrestricted_routes = self.base_unrestricted_routes + data.get('unrestricted_routes', '').split(',')
+            self._load_optional(data.get)
 
     def load_from_env_file(self, config_path):
         from decouple import Config, RepositoryEnv
@@ -87,6 +161,7 @@ class Config(object):
         self.logout_endpoint = config('logout_endpoint', None)
         self.post_logout_uri = config('post_logout_uri', None)
         self.unrestricted_routes = self.base_unrestricted_routes + config('unrestricted_routes', '').split(',')
+        self._load_optional(lambda key: config(key, None))
 
     def get_unrestricted_routes(self):
         return [self.app_login_route, self.app_authorize_route, self.app_logout_route] + self.unrestricted_routes
@@ -100,30 +175,33 @@ class Config(object):
                       client_id=self.client_id,
                       client_secret=self.client_secret if not hide_password else '********',
                       scope=self.scope,
-                      cookie_secret_key=self.cookie_secret_key,
+                      cookie_secret_key=self.cookie_secret_key if not hide_password else '********',
                       token_revoke_endpoint=self.token_revoke_endpoint,
                       logout_endpoint=self.logout_endpoint,
-                      post_logout_uri=self.post_logout_uri)
+                      post_logout_uri=self.post_logout_uri,
+                      issuer=self.issuer,
+                      jwks_uri=self.jwks_uri,
+                      use_pkce=self.use_pkce,
+                      use_nonce=self.use_nonce,
+                      validate_id_token=self.validate_id_token,
+                      roles_source=self.roles_source)
         return json.dumps(config, indent=4)
 
     def load_from_wellknown(self, wellknown_url: str = None):
         url = wellknown_url or self.well_known_openid_url
-        response = requests.get(url)
+        response = requests.get(url, timeout=self.http_timeout)
         if response.status_code == 200:
             data = json.loads(response.text)
             self.authorization_endpoint = data['authorization_endpoint']
             self.token_endpoint = data['token_endpoint']
             self.userinfo_endpoint = data['userinfo_endpoint']
             self.token_revoke_endpoint = data.get('revocation_endpoint')
-            # 'scopes_supported' is RECOMMENDED (not REQUIRED) by the OIDC
-            # Discovery spec, so some servers may omit it.
+            self.issuer = self.issuer or data.get('issuer')
+            self.jwks_uri = self.jwks_uri or data.get('jwks_uri')
             scopes_supported = data.get('scopes_supported')
             if not self.scope:
-                # If not defined, copy the scopes_supported from the server
-                # (fall back to 'openid' when the server doesn't advertise them).
                 self.scope = scopes_supported or ['openid']
             elif scopes_supported:
-                # Validate self.scope with the scopes_supported by the server.
                 for scope in self.scope:
                     if scope not in scopes_supported:
                         raise Exception(f"Scope '{scope}' not supported by the server.")
