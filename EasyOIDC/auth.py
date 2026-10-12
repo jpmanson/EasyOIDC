@@ -43,6 +43,29 @@ class OIDClient(object):
                 assert self._config.is_valid_config()
             except Exception as e:
                 raise Exception(f"Error loading configuration: {e}")
+        self._discovery_loaded = False
+
+    def _ensure_id_token_metadata(self):
+        """Fill ``issuer`` / ``jwks_uri`` from discovery when they are missing.
+
+        Configs that set the endpoints explicitly never call
+        ``load_from_wellknown()`` at startup, so without this the ID token
+        would be accepted without checking its signature or issuer. Explicit
+        values always win; failures are logged and retried on the next login.
+        """
+        cfg = self._config
+        if self._discovery_loaded or (cfg.issuer and cfg.jwks_uri) or not cfg.well_known_openid_url:
+            return
+        try:
+            response = requests.get(cfg.well_known_openid_url, timeout=cfg.http_timeout)
+            response.raise_for_status()
+            data = response.json()
+            cfg.issuer = cfg.issuer or data.get('issuer')
+            cfg.jwks_uri = cfg.jwks_uri or data.get('jwks_uri')
+            self._discovery_loaded = True
+        except Exception as e:
+            if self._log_enabled:
+                self.logger.warning(f'Could not read issuer/jwks_uri from discovery: {e}')
 
     def set_roles_getter(self, func: callable):
         self._roles_getter = func
@@ -172,6 +195,8 @@ class OIDClient(object):
             return {}
         if not cfg.validate_id_token:
             return decode_jwt_claims_unverified(id_token)
+
+        self._ensure_id_token_metadata()
 
         from joserfc import jwt
         from joserfc.errors import JoseError
