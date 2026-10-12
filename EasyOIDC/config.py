@@ -198,6 +198,10 @@ class Config(object):
             self.token_revoke_endpoint = data.get('revocation_endpoint')
             self.issuer = self.issuer or data.get('issuer')
             self.jwks_uri = self.jwks_uri or data.get('jwks_uri')
+            # RP-initiated logout. Auth0's end_session_endpoint expects other
+            # parameters than get_auth0_logout_url builds, so it is not used.
+            if self.auth_service != 'auth0':
+                self.logout_endpoint = self.logout_endpoint or data.get('end_session_endpoint')
             scopes_supported = data.get('scopes_supported')
             if not self.scope:
                 self.scope = scopes_supported or ['openid']
