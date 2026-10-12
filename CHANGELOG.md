@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.4.2
+
+### Fixed
+
+- **ID token signature and issuer were not verified** when the endpoints
+  (`authorization_endpoint`, `token_endpoint`, `userinfo_endpoint`) are set
+  explicitly together with `well_known_openid_url`. In that case
+  `load_from_wellknown()` is never called at startup, so `jwks_uri` and
+  `issuer` stayed empty and `validate_id_token()` only checked `aud`, `exp`
+  and `nonce`. The client now reads `issuer` / `jwks_uri` from discovery on
+  the first login when they are missing (once per process; explicit values
+  win). Affects 0.4.0 and 0.4.1.
+
+  Apps that only configure endpoints, without `well_known_openid_url`, should
+  set `issuer` and `jwks_uri` explicitly; otherwise a warning is logged and
+  the signature is not verified.
+
+### Tests
+
+- End-to-end test of the NiceGUI integration against the in-process IdP
+  (login, client roles, 403, logout, IdP error).
+
 ## 0.4.1
 
 ### Fixed
