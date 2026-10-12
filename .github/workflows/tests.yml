@@ -39,7 +39,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[flask,fastapi,redis,dev]"
+          pip install -e ".[flask,fastapi,nicegui,redis,dev]"
 
       - name: Wait for mock OIDC server
         run: |
