@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.5.0
+
+### Changed (breaking for `mode='redis'`)
+
+- **Redis sessions expire.** Each session is now its own key,
+  `{namespace}:{session id}`, written with `SET ... EX ttl`. Before, all
+  sessions were fields of one hash, which can't expire, so sessions without a
+  logout stayed in Redis forever with their tokens. `ttl` defaults to 14 days
+  (the FastAPI cookie lifetime) and is renewed on every write (token refresh);
+  `ttl=None` disables it. `keys()` and `reset_keys()` use `SCAN`.
+- **JSON instead of pickle.** Values are stored as JSON. With pickle, whoever
+  could write to Redis could run code in the app.
+- **Migration:** sessions from earlier versions (the `{namespace}` hash) are
+  ignored, so users log in again, and a warning is logged at startup. To keep
+  them, start once with `SessionHandler(mode='redis', allow_pickle=True)`:
+  each one is moved to the new format when read. Remove the option afterwards.
+
+### Added
+
+- `SessionHandler(mode='redis', url=...)` (`redis://`, `rediss://`, ACL
+  users). Any other keyword (`username`, `ssl`, `socket_timeout`,
+  `health_check_interval`, ...) is passed to `redis.Redis`; before, only
+  `host`, `port`, `db` and `password` were used and the rest was ignored.
+- `socket_timeout` and `socket_connect_timeout` default to 5 seconds. Without
+  them a Redis outage hung every request.
+- `SessionHandler.ping()` for health checks.
+- `redis_client` accepts any object with `get`, `set`, `delete`, `exists`,
+  `scan_iter` and `ping` (e.g. wrappers). Before, a client that was
+  not a `redis.Redis` was silently ignored and a default client was created;
+  now an incompatible object raises `TypeError`.
+
+### Tests
+
+- Redis tests against a real server (`EASYOIDC_TEST_REDIS_URL`, default
+  `redis://localhost:6379/15`, namespace `easyoidc-test`), including a full
+  login/logout. The old Redis test no longer touches the default `sessions`
+  namespace in db 0.
+
 ## 0.4.3
 
 ### Fixed

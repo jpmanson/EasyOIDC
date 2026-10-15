@@ -56,11 +56,13 @@ def test_session_storage_redis():
     # redis mode: requires redis-py (optional extra) and a reachable Redis.
     pytest.importorskip('redis')
     import redis
+    import os
+    url = os.environ.get('EASYOIDC_TEST_REDIS_URL', 'redis://localhost:6379/15')
     try:
-        redis.StrictRedis().ping()
+        redis.Redis.from_url(url, socket_connect_timeout=2).ping()
     except Exception:
         pytest.skip('No reachable Redis server')
-    _exercise_store(SessionHandler(mode='redis'))
+    _exercise_store(SessionHandler(mode='redis', namespace='easyoidc-test', url=url))
 
 
 def test_session_storage_redis_missing_dep(monkeypatch):
