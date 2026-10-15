@@ -121,6 +121,30 @@ A few things worth knowing:
 
 See `examples/fastapi_high_level.py` and `examples/fastapi_low_level.py`.
 
+### Public pages with an optional user
+
+A page that works both anonymously and logged in (e.g. a home page that shows
+a welcome to visitors and a dashboard to users):
+
+```python
+# '/' listed in unrestricted_routes (exact match: only '/')
+
+@app.get('/')
+def home(user: Optional[dict] = Depends(auth.current_user)):
+    if user is None:
+        return HTMLResponse(f"<a href='{auth.login_url(next='/')}'>Log in</a>")
+    return {'hello': user['name']}
+```
+
+- On unrestricted routes the middleware still loads the session, so
+  `current_user`, `get_userinfo()`, `is_authenticated()` and
+  `get_user_roles()` work and return `None` / `False` / `[]` when anonymous
+  (Flask and NiceGUI: `auth.get_userinfo()` returns `None`).
+- `unrestricted_routes` entries match exactly unless they contain `*`.
+  **`/*` makes the whole site public**; use a prefix such as `/public/*`.
+- `auth.login_url(next='/path')` builds the login link with `?next=`
+  (only local paths are honoured).
+
 ### Access policy, Keycloak client roles and security defaults (0.4.0)
 
 The high-level clients (FastAPI, Flask, NiceGUI, Taipy) accept an access
@@ -176,7 +200,11 @@ Other behaviour of the high-level clients:
   the session.
 - `?next=/path` is accepted on the login route; only local paths are honoured.
 - Logout sends `client_id`, `post_logout_redirect_uri` and (when available)
-  `id_token_hint`, as required by Keycloak 18+. If the session is no longer in
+  `id_token_hint`, as required by Keycloak 18+. This is standard
+  RP-initiated logout, used for every provider whose `logout_endpoint` (the
+  discovery `end_session_endpoint`) is set, Entra ID included; Auth0 uses its
+  own `/v2/logout`. Google has no IdP logout, so only the local session is
+  cleared. If the session is no longer in
   the store (process restart, several workers with `memory` storage, expired
   entry), `/logout` still redirects to the IdP without `id_token_hint` (Keycloak
   shows a confirmation page) and logs a warning. Set
@@ -306,6 +334,10 @@ session_storage = SessionHandler(mode='redis', redis_client=my_client)
 
 # Health check endpoint
 session_storage.ping()
+
+# Number of stored sessions (pending logins included). Also available as
+# auth.session_storage.count() from the framework client.
+session_storage.count()
 ```
 
 - Each session is its own key, `{namespace}:{session id}` (`namespace`

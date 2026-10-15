@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.5.1
+
+### Added
+
+- `client.login_url(next='/path')`: login route URL with `?next=`, so apps
+  don't hardcode it.
+- `client.session_storage` (public access to the `SessionHandler`) and
+  `SessionHandler.count()` (number of stored sessions, pending logins
+  included).
+- `get_rp_initiated_logout_url()`: the RP-initiated logout URL under a
+  provider-neutral name. `get_keycloak_logout_url()` is kept as a deprecated
+  alias.
+
+### Changed
+
+- `get_logout_url()` uses RP-initiated logout for every provider that has a
+  `logout_endpoint`, not only when `auth_service == 'keycloak'`. Before, a
+  provider detected as `google` returned `None` even with a
+  `logout_endpoint` set. Auth0 is unchanged.
+
+### Docs
+
+- README: public pages with an optional user (`current_user`,
+  `login_url()`, `unrestricted_routes` matching and the `/*` pitfall), logout
+  per provider (Google has no IdP logout), `count()`.
+
 ## 0.5.0
 
 ### Changed (breaking for `mode='redis'`)

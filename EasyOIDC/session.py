@@ -246,6 +246,11 @@ class SessionHandler:
             with self._memory_lock:
                 del self._memory_store[key_name]
 
+    def count(self) -> int:
+        """Number of stored sessions, pending logins included. In redis mode
+        it scans the namespace, so avoid calling it on every request."""
+        return len(list(self.keys()))
+
     def keys(self):
         if self.mode == 'redis':
             prefix = len(self.namespace) + 1
