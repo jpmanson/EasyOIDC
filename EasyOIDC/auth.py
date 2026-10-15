@@ -76,6 +76,20 @@ class OIDClient(object):
     def get_config(self):
         return self._config
 
+    @property
+    def session_storage(self):
+        """The server-side :class:`SessionHandler` (``None`` on a bare client)."""
+        return getattr(self, '_session_storage', None)
+
+    def login_url(self, next: Optional[str] = None) -> str:
+        """URL of the login route, optionally with ``?next=`` so the user
+        comes back to ``next`` after logging in. Only local paths are honoured
+        by the login route."""
+        url = self._config.app_login_route
+        if next:
+            url += f'?next={quote(next, safe="/")}'
+        return url
+
     # ------------------------------------------------------------------
     # OAuth2 session / login
     # ------------------------------------------------------------------
@@ -289,8 +303,10 @@ class OIDClient(object):
     # ------------------------------------------------------------------
     # Logout
     # ------------------------------------------------------------------
-    def get_keycloak_logout_url(self, id_token=None):
-        """RP-initiated logout URL (OIDC RP-Initiated Logout 1.0).
+    def get_rp_initiated_logout_url(self, id_token=None):
+        """RP-initiated logout URL (OIDC RP-Initiated Logout 1.0) built on
+        ``logout_endpoint`` (the discovery ``end_session_endpoint``). Works
+        with Keycloak, Entra ID and any provider that implements the spec.
 
         Always sends ``client_id`` (required by Keycloak >= 18 when there is
         no ``id_token_hint``) and only sends ``id_token_hint`` when there is
@@ -303,6 +319,10 @@ class OIDClient(object):
         if id_token:
             url += f'&id_token_hint={quote(id_token, safe="")}'
         return url
+
+    def get_keycloak_logout_url(self, id_token=None):
+        """Deprecated alias of :meth:`get_rp_initiated_logout_url`."""
+        return self.get_rp_initiated_logout_url(id_token)
 
     def get_auth0_logout_url(self):
         post_logout_uri = self._config.post_logout_uri
@@ -317,10 +337,17 @@ class OIDClient(object):
         return url
 
     def get_logout_url(self, id_token: str = ''):
-        if self._config.auth_service == 'keycloak':
-            return self.get_keycloak_logout_url(id_token)
-        elif self._config.auth_service == 'auth0':
+        """IdP logout URL, or ``None`` when the provider has none.
+
+        Auth0 uses its own ``/v2/logout``; every other provider uses
+        RP-initiated logout when ``logout_endpoint`` is set. Google has no
+        IdP logout, so it gets ``None`` (only the local session is cleared).
+        """
+        if self._config.auth_service == 'auth0':
             return self.get_auth0_logout_url()
+        if self._config.logout_endpoint:
+            return self.get_rp_initiated_logout_url(id_token)
+        return None
 
     def call_logout_endpoint(self, id_token: str = ''):
         url = self.get_logout_url(id_token)
