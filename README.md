@@ -291,6 +291,36 @@ session_storage = SessionHandler(mode='shelve')
 session_storage = SessionHandler(mode='redis')
 ```
 
+#### Redis options
+
+```python
+# URL, including TLS (rediss://) and ACL users
+session_storage = SessionHandler(mode='redis', url='rediss://app:secret@redis.example.com:6380/0')
+
+# Or host/port/db/password; any other keyword goes to redis.Redis
+session_storage = SessionHandler(mode='redis', host='redis', port=6379, db=0, password='secret',
+                                 health_check_interval=30)
+
+# Or a ready client (anything with get/set/delete/exists/scan_iter/ping)
+session_storage = SessionHandler(mode='redis', redis_client=my_client)
+
+# Health check endpoint
+session_storage.ping()
+```
+
+- Each session is its own key, `{namespace}:{session id}` (`namespace`
+  defaults to `sessions`), stored as **JSON** with an expiry of `ttl` seconds
+  (default 14 days, the FastAPI cookie lifetime; `ttl=None` disables it). The
+  expiry is renewed on every write, e.g. each token refresh, so abandoned
+  sessions disappear on their own.
+- `socket_timeout` and `socket_connect_timeout` default to 5 seconds, so a
+  Redis outage fails fast instead of hanging every request.
+- Sessions from EasyOIDC < 0.5 (pickle values in one `{namespace}` hash) are
+  ignored and a warning is logged at startup: users log in again. To keep them,
+  start once with `allow_pickle=True`, which moves each one to the new format
+  when it is read, and then remove the option. Unpickling lets whoever can
+  write to Redis run code in the app, so don't leave it on.
+
 #### Choosing a backend
 
 | Mode | Persistence | Thread-safe | Multi-process | Dependencies | Best for |
@@ -317,8 +347,8 @@ session_storage = SessionHandler(mode='redis')
 - **`redis`** — the only option that is both thread-safe **and** shared across
   processes/hosts, making it the right choice for production and horizontally
   scaled deployments. It requires the optional extra and a running Redis. Uses
-  `redis-py` directly (no version cap); sessions are stored as fields of a
-  single Redis hash (one key per `namespace`), serialized with `pickle`.
+  `redis-py` directly (no version cap); each session is a JSON key that
+  expires (see *Redis options*).
 
 **Redis is optional** and kept out of the core dependencies, so projects using
 `memory` or `shelve` don't pull Redis in. Install it with
