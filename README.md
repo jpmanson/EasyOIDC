@@ -176,7 +176,11 @@ Other behaviour of the high-level clients:
   the session.
 - `?next=/path` is accepted on the login route; only local paths are honoured.
 - Logout sends `client_id`, `post_logout_redirect_uri` and (when available)
-  `id_token_hint`, as required by Keycloak 18+.
+  `id_token_hint`, as required by Keycloak 18+. If the session is no longer in
+  the store (process restart, several workers with `memory` storage, expired
+  entry), `/logout` still redirects to the IdP without `id_token_hint` (Keycloak
+  shows a confirmation page) and logs a warning. Set
+  `logout_without_token = 'local'` to only clear the local session instead.
 
 See [`CHANGELOG.md`](CHANGELOG.md) for the upgrade notes.
 

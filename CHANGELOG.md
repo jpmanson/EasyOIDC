@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.4.3
+
+### Fixed
+
+- **Logout did not close the IdP session when the server-side session was
+  lost.** If the session id in the cookie was not in the store (`memory`
+  storage after a restart or `--reload`, several processes with `memory`
+  storage, expired or deleted entry), `/logout` only redirected to
+  `post_logout_uri`. The Keycloak SSO session stayed alive and the next login
+  was silent, so "Logout" seemed not to work. `/logout` now redirects to the
+  IdP logout with `client_id` and `post_logout_redirect_uri`, without
+  `id_token_hint` (Keycloak 18+ shows a confirmation page). Applies to
+  FastAPI, Flask and NiceGUI.
+- A warning is logged (logger `EasyOIDC`) when `/logout` gets a session id
+  that is not in the store.
+
+### Added
+
+- `logout_without_token` setting: `'idp'` (default, new behaviour) or
+  `'local'` (only clear the local session, as before 0.4.3).
+
 ## 0.4.2
 
 ### Fixed
