@@ -15,6 +15,10 @@
   FastAPI, Flask and NiceGUI.
 - A warning is logged (logger `EasyOIDC`) when `/logout` gets a session id
   that is not in the store.
+- `SessionHandler(mode='memory')` logs a warning when the app seems to run
+  in several processes (`WEB_CONCURRENCY > 1`, or `--workers N > 1` /
+  `-w N > 1` on the command line). Sessions in memory are not shared between
+  processes; use `mode='redis'`.
 
 ### Added
 
