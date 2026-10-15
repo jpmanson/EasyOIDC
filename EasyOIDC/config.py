@@ -76,6 +76,13 @@ class Config(object):
     # A login started at /login must be completed within this many seconds.
     login_timeout_seconds = 600
 
+    # --- Added in 0.4.3 -----------------------------------------------------
+    # What /logout does when the session is not in the store (lost on a
+    # restart, another process, expired): 'idp' still redirects to the IdP
+    # logout (without id_token_hint) so the SSO session is closed; 'local'
+    # only clears the local cookie, as before 0.4.3.
+    logout_without_token = 'idp'
+
     def __init__(self, config_path=None, **kwargs):
         self.scope = ['openid', 'email', 'profile']
         self.app_login_route = '/login'
@@ -116,13 +123,16 @@ class Config(object):
         self.http_timeout = float(self.http_timeout) if self.http_timeout else None
         self.id_token_leeway = int(self.id_token_leeway or 0)
         self.login_timeout_seconds = int(self.login_timeout_seconds or 600)
+        if self.logout_without_token not in ('idp', 'local'):
+            raise ValueError("logout_without_token must be 'idp' or 'local'")
         if self.roles_source not in ('realm', 'client', 'realm+client'):
             raise ValueError("roles_source must be 'realm', 'client' or 'realm+client'")
 
     def _load_optional(self, getter):
         for key in ('use_pkce', 'use_nonce', 'validate_id_token', 'id_token_algorithms',
                     'id_token_leeway', 'http_timeout', 'roles_source', 'roles_client_id',
-                    'roles_claims_from', 'login_timeout_seconds', 'issuer', 'jwks_uri'):
+                    'roles_claims_from', 'login_timeout_seconds', 'issuer', 'jwks_uri',
+                    'logout_without_token'):
             value = getter(key)
             if value not in (None, ''):
                 setattr(self, key, value)
@@ -184,7 +194,8 @@ class Config(object):
                       use_pkce=self.use_pkce,
                       use_nonce=self.use_nonce,
                       validate_id_token=self.validate_id_token,
-                      roles_source=self.roles_source)
+                      roles_source=self.roles_source,
+                      logout_without_token=self.logout_without_token)
         return json.dumps(config, indent=4)
 
     def load_from_wellknown(self, wellknown_url: str = None):

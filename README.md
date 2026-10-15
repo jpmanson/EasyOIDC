@@ -176,7 +176,11 @@ Other behaviour of the high-level clients:
   the session.
 - `?next=/path` is accepted on the login route; only local paths are honoured.
 - Logout sends `client_id`, `post_logout_redirect_uri` and (when available)
-  `id_token_hint`, as required by Keycloak 18+.
+  `id_token_hint`, as required by Keycloak 18+. If the session is no longer in
+  the store (process restart, several workers with `memory` storage, expired
+  entry), `/logout` still redirects to the IdP without `id_token_hint` (Keycloak
+  shows a confirmation page) and logs a warning. Set
+  `logout_without_token = 'local'` to only clear the local session instead.
 
 See [`CHANGELOG.md`](CHANGELOG.md) for the upgrade notes.
 
@@ -299,7 +303,13 @@ session_storage = SessionHandler(mode='redis')
 
 - **`memory`** — zero setup, thread-safe, fastest. But sessions vanish on
   restart and are **not shared** between processes/workers, so a multi-worker
-  server (e.g. Gunicorn with several workers) will see inconsistent logins.
+  server (e.g. Gunicorn with several workers) will see inconsistent logins:
+  random redirects to `/login`, and a logout handled by a process that doesn't
+  have the session. A warning is logged at startup when `WEB_CONCURRENCY > 1`
+  or `--workers N > 1` is detected, but not every case can be detected (e.g.
+  two processes started by hand on the same port, which Windows allows).
+  Sessions are also lost on every restart, including `--reload` in
+  development. **Use it only for a single process.**
 - **`shelve`** — persists to a local file with no external service. But the
   default Python 3.13+ backend (`dbm.sqlite3`) is **not thread-safe** and it is
   single-host/single-process only, so it's unsuitable for multi-threaded WSGI

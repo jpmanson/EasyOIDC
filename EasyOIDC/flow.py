@@ -187,12 +187,27 @@ def load_session(client: OIDClient, storage, sid: Optional[str], roles_getter,
 
 
 def end_session(client: OIDClient, storage, sid: Optional[str]) -> Optional[str]:
-    """Drop the session and return the IdP logout URL (or ``None``)."""
-    data = _store_get(storage, sid) or {}
+    """Drop the session and return the IdP logout URL (or ``None``).
+
+    When the session is not in the store (process restart, another worker
+    with ``memory`` storage, expired entry) there is no ID token, but the
+    IdP SSO session may still be alive. With ``logout_without_token='idp'``
+    (default) the user is still sent to the IdP logout, without
+    ``id_token_hint``; with ``'local'`` only the local session is cleared.
+    """
+    data = _store_get(storage, sid)
     _store_del(storage, sid)
-    token = data.get('token') or {}
-    if token and client.get_config().logout_endpoint:
+    if sid and data is None:
+        logger.warning('Logout: session not found in the store (restart, another process '
+                       'with memory storage, or expired); there is no ID token for the IdP logout')
+    cfg = client.get_config()
+    if not cfg.logout_endpoint:
+        return None
+    token = (data or {}).get('token') or {}
+    if token:
         return client.get_logout_url(token.get('id_token'))
+    if cfg.logout_without_token == 'idp':
+        return client.get_logout_url(None)
     return None
 
 

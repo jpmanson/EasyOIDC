@@ -1,7 +1,50 @@
+import logging
 import os
 import pickle
 import shelve
+import sys
 import threading
+
+logger = logging.getLogger('EasyOIDC')
+
+
+def _argv_workers(argv) -> int:
+    """Worker count from ``--workers N`` / ``--workers=N`` / ``-w N`` /
+    ``-wN`` in ``argv`` (uvicorn, gunicorn, hypercorn). 0 when absent."""
+    for i, arg in enumerate(argv):
+        value = None
+        if arg in ('--workers', '-w') and i + 1 < len(argv):
+            value = argv[i + 1]
+        elif arg.startswith('--workers='):
+            value = arg.split('=', 1)[1]
+        elif arg.startswith('-w') and arg[2:].isdigit():
+            value = arg[2:]
+        if value is not None:
+            try:
+                return int(value)
+            except ValueError:
+                return 0
+    return 0
+
+
+def detect_multiple_workers(environ=None, argv=None) -> str:
+    """Return why the app seems to run in several processes, or ``''``.
+
+    Best effort: looks at ``WEB_CONCURRENCY`` (honoured by uvicorn and
+    gunicorn) and at ``--workers`` / ``-w`` on the command line. Several
+    processes started by hand on the same port can't be detected.
+    """
+    environ = os.environ if environ is None else environ
+    argv = sys.argv if argv is None else argv
+    try:
+        if int(environ.get('WEB_CONCURRENCY') or 0) > 1:
+            return f"WEB_CONCURRENCY={environ['WEB_CONCURRENCY']}"
+    except ValueError:
+        pass
+    workers = _argv_workers(argv)
+    if workers > 1:
+        return f'{workers} workers on the command line'
+    return ''
 
 
 class SessionHandler:
@@ -18,6 +61,10 @@ class SessionHandler:
         Install with: ``pip install easyoidc[redis]``. Sessions are stored as
         fields of a Redis hash (one key per ``namespace``), serialized with
         ``pickle``.
+
+    In ``memory`` mode a warning is logged when the app seems to run in
+    several processes (see :func:`detect_multiple_workers`): each process
+    would have its own sessions, so logins and logouts break at random.
     """
 
     def __init__(self, mode='memory', namespace='sessions', **kwargs):
@@ -57,6 +104,11 @@ class SessionHandler:
         elif mode == 'memory':
             self._memory_store = {}
             self._memory_lock = threading.Lock()
+            reason = detect_multiple_workers()
+            if reason:
+                logger.warning(f"SessionHandler(mode='memory') with several processes ({reason}): "
+                               "sessions are not shared between them, so logins and logouts will "
+                               "fail at random. Use mode='redis'.")
         else:
             raise Exception(f"Unknown mode: {mode}")
 
